@@ -40,12 +40,10 @@ class IBKRGateway:
     def make_crypto_contract(self, symbol: str, exchange: str = 'PAXOS', currency: str = 'USD') -> Contract:
         return Crypto(symbol, exchange=exchange, currency=currency)
 
-    def make_forex_contract(self, symbol: str, exchange: str = 'IDEALPRO', currency: str = 'USD') -> Contract:
+    def make_forex_contract(self, symbol: str, exchange: str = 'IDEALPRO') -> Contract:
         if len(symbol) != 6:
             raise ValueError('Forex symbol must be 6 characters, e.g. EURUSD')
-        base_currency = symbol[:3]
-        quote_currency = symbol[3:]
-        return Forex(base_currency, quote_currency=quote_currency, exchange=exchange)
+        return Forex(symbol, exchange=exchange)
 
     def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5 mins', what_to_show: str = 'TRADES', use_rth: bool = False):
         logger.info('Requesting historical data: %s, duration=%s, bar_size=%s, what_to_show=%s', contract.symbol if hasattr(contract, 'symbol') else contract.secType, duration, bar_size, what_to_show)

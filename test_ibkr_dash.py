@@ -21,7 +21,7 @@ from ibkr import IBKRGateway
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-SYMBOL = 'BTC'
+SYMBOL = 'EURUSD'
 
 
 def ibkr_worker(plotter: DashPlotter, stop_event: threading.Event) -> None:
@@ -33,8 +33,8 @@ def ibkr_worker(plotter: DashPlotter, stop_event: threading.Event) -> None:
             stop_event.set()
             return
 
-        contract = gateway.make_crypto_contract(SYMBOL)
-        bars = gateway.fetch_live_bars(contract, duration='1 D', bar_size='1 min')
+        contract = gateway.make_forex_contract(SYMBOL)
+        bars = gateway.fetch_live_bars(contract, duration='900 S', bar_size='1 min', what_to_show='MIDPOINT')
 
         plotter.push_bars(bars)
         logger.info('Loaded %d historical bars; streaming live 1-min updates…', len(bars))
