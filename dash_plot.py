@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class DashPlotter:
-    def __init__(self, title: str = 'Live Chart', host: str = '127.0.0.1', port: int = 8050):
+    def __init__(self, title: str = 'Live Chart', host: str = '127.0.0.1', port: int = 8050, display_hours: float = 0):
         self.title = title
         self.host = host
         self.port = port
+        self.display_hours = display_hours  # 0 = show all data
         self._queue: queue.Queue = queue.Queue()
         self._df: pd.DataFrame = pd.DataFrame()
         self._lock = threading.Lock()
@@ -39,7 +40,7 @@ class DashPlotter:
                     font=dict(color='#aaa'),
                     annotations=[dict(text='Waiting for data…', showarrow=False, font=dict(size=18, color='#666'))],
                 ))
-            return _candlestick_figure(df)
+            return _candlestick_figure(df, self.display_hours)
 
         return app
 
@@ -56,7 +57,7 @@ class DashPlotter:
             self._df = pd.concat(
                 [self._df, pd.DataFrame(rows)],
                 ignore_index=True,
-            ).drop_duplicates(subset=['date']).sort_values('date').reset_index(drop=True)
+            ).drop_duplicates(subset=['date'], keep='last').sort_values('date').reset_index(drop=True)
 
     def push(self, date, open_: float, high: float, low: float, close: float, volume: float = 0.0):
         self._queue.put({'date': date, 'open': open_, 'high': high, 'low': low, 'close': close, 'volume': volume})
@@ -79,7 +80,7 @@ class DashPlotter:
         self._app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
 
 
-def _candlestick_figure(df: pd.DataFrame) -> go.Figure:
+def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0) -> go.Figure:
     fig = go.Figure(data=[go.Candlestick(
         x=df['date'],
         open=df['open'],
@@ -89,12 +90,17 @@ def _candlestick_figure(df: pd.DataFrame) -> go.Figure:
         increasing_line_color='#26a69a',
         decreasing_line_color='#ef5350',
     )])
+    xaxis = dict(showgrid=False, color='#888')
+    if display_hours > 0:
+        end = pd.Timestamp(df['date'].max())
+        start = end - pd.Timedelta(hours=display_hours)
+        xaxis['range'] = [start, end]
     fig.update_layout(
         xaxis_rangeslider_visible=False,
         paper_bgcolor='#1e1e1e',
         plot_bgcolor='#1e1e1e',
         font=dict(color='#ccc'),
-        xaxis=dict(showgrid=False, color='#888'),
+        xaxis=xaxis,
         yaxis=dict(showgrid=True, gridcolor='#333', color='#888'),
         margin=dict(l=50, r=20, t=20, b=40),
     )

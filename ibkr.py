@@ -1,10 +1,10 @@
 import logging
-from ib_insync import IB, Stock, Forex, MarketOrder, Contract
+from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, Contract
 
 # Basic default settings for IBKR Gateway / TWS
 HOST = '127.0.0.1'
-PORT = 7497
-CLIENT_ID = 1
+PORT = 4003
+CLIENT_ID = 78
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
@@ -37,6 +37,9 @@ class IBKRGateway:
     def make_stock_contract(self, symbol: str, exchange: str = 'SMART', currency: str = 'USD') -> Contract:
         return Stock(symbol, exchange=exchange, currency=currency)
 
+    def make_crypto_contract(self, symbol: str, exchange: str = 'PAXOS', currency: str = 'USD') -> Contract:
+        return Crypto(symbol, exchange=exchange, currency=currency)
+
     def make_forex_contract(self, symbol: str, exchange: str = 'IDEALPRO', currency: str = 'USD') -> Contract:
         if len(symbol) != 6:
             raise ValueError('Forex symbol must be 6 characters, e.g. EURUSD')
@@ -55,6 +58,20 @@ class IBKRGateway:
             useRTH=use_rth,
             formatDate=1,
             keepUpToDate=False,
+        )
+        return bars
+
+    def fetch_live_bars(self, contract: Contract, duration: str = '1 D', bar_size: str = '1 min', what_to_show: str = 'TRADES', use_rth: bool = False):
+        logger.info('Subscribing to live bars: %s, bar_size=%s', contract.symbol if hasattr(contract, 'symbol') else contract.secType, bar_size)
+        bars = self.ib.reqHistoricalData(
+            contract,
+            endDateTime='',
+            durationStr=duration,
+            barSizeSetting=bar_size,
+            whatToShow=what_to_show,
+            useRTH=use_rth,
+            formatDate=1,
+            keepUpToDate=True,
         )
         return bars
 
