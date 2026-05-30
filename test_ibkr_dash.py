@@ -26,7 +26,7 @@ SYMBOL = 'EURUSD'
 
 def ibkr_worker(plotter: DashPlotter, stop_event: threading.Event) -> None:
     util.startLoop()
-    gateway = IBKRGateway()
+    gateway = IBKRGateway(client_id=79)
     try:
         if not gateway.connect():
             logger.error('Failed to connect to IBKR')

@@ -21,6 +21,8 @@ class DashPlotter:
         self._thread: threading.Thread | None = None
         self._app = self._build_app()
 
+    # Creates the Dash app with an H3 title, a candlestick Graph, and a 1-second Interval
+    # that fires the `refresh` callback to pull new bars from the queue and redraw the chart.
     def _build_app(self) -> Dash:
         app = Dash(__name__)
         app.layout = html.Div([
@@ -44,6 +46,8 @@ class DashPlotter:
 
         return app
 
+    # Drains all pending bar dicts from the thread-safe queue, appends them to the internal
+    # DataFrame, deduplicates on `date` (keeping the latest value), and re-sorts by time.
     def _drain_queue(self):
         rows = []
         while True:
@@ -59,14 +63,19 @@ class DashPlotter:
                 ignore_index=True,
             ).drop_duplicates(subset=['date'], keep='last').sort_values('date').reset_index(drop=True)
 
+    # Enqueues a single OHLCV bar dict; safe to call from any thread at any time.
     def push(self, date, open_: float, high: float, low: float, close: float, volume: float = 0.0):
         self._queue.put({'date': date, 'open': open_, 'high': high, 'low': low, 'close': close, 'volume': volume})
 
+    # Convenience wrapper: iterates an iterable of bar objects (must have .date/.open/.high/.low/.close)
+    # and calls push() for each one.
     def push_bars(self, bars):
         for bar in bars:
             self.push(bar.date, bar.open, bar.high, bar.low, bar.close, getattr(bar, 'volume', 0.0))
         logger.info('Queued %d bars for plotting', len(bars))
 
+    # Launches the Dash/Flask server in a background daemon thread so it doesn't block the caller.
+    # Calling start() a second time while the server is running is a no-op.
     def start(self):
         if self._thread and self._thread.is_alive():
             logger.warning('Dash plotter already running')
@@ -75,11 +84,16 @@ class DashPlotter:
         self._thread.start()
         logger.info('Dash server starting at http://%s:%s', self.host, self.port)
 
+    # Entry point for the daemon thread: mutes verbose werkzeug logs, then blocks inside
+    # app.run() for the lifetime of the process (debug and reloader both off for threading safety).
     def _run_server(self):
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
         self._app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
 
 
+# Builds a dark-themed Plotly candlestick figure from a DataFrame with columns
+# [date, open, high, low, close].  When display_hours > 0, the x-axis is clamped to
+# the most recent N hours so the chart doesn't compress historical data into view.
 def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0) -> go.Figure:
     fig = go.Figure(data=[go.Candlestick(
         x=df['date'],
