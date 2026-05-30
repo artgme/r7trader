@@ -211,8 +211,15 @@ class Mozg:
 
     # ── Main entry point ─────────────────────────────────────────────────────────
 
-    # Build cerebro, start the data worker, and block until Ctrl-C.
-    def run(self):
+    # Signal this engine to stop from any thread (used for multi-symbol shutdown).
+    def stop(self):
+        self._stop_event.set()
+        self._feed_queue.put(None)
+
+    # Build cerebro, start the data worker, and block until stopped.
+    # Set handle_sigint=False when running multiple instances so the caller
+    # manages Ctrl-C centrally instead of each instance fighting over the handler.
+    def run(self, handle_sigint: bool = True):
         live_cls = _make_live_strategy(self.strategy_class, self._on_bt_fill)
 
         feed = _QueueFeed(queue=self._feed_queue)
@@ -235,13 +242,11 @@ class Mozg:
         worker = threading.Thread(target=target, daemon=True, name='data-worker')
         worker.start()
 
-        # Ctrl-C pushes the stop sentinel so cerebro exits cleanly
-        def _sigint(sig, frame):
-            logger.info('Stopping…')
-            self._stop_event.set()
-            self._feed_queue.put(None)
-
-        signal.signal(signal.SIGINT, _sigint)
+        if handle_sigint:
+            def _sigint(sig, frame):
+                logger.info('Stopping…')
+                self.stop()
+            signal.signal(signal.SIGINT, _sigint)
 
         logger.info(
             'Mozg running  symbol=%s  timeframe=%s  strategy=%s  broker=%s  size=%s',
@@ -402,6 +407,7 @@ class Mozg:
                     'action': action,
                     'price':  price,
                     'date':   datetime.now(timezone.utc).isoformat(),
+                    'symbol': self.symbol,
                 },
                 timeout=3,
             )
@@ -413,6 +419,7 @@ class Mozg:
     # Create the CSV with a header row if it does not already exist.
     def _init_csv(self):
         path = Path(self.csv_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
             with open(path, 'w', newline='') as f:
                 csv.writer(f).writerow(
