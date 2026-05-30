@@ -238,6 +238,68 @@ def _trade_table(trades: list) -> html.Table:
     )
 
 
+# Per-file summary table: one row per CSV file + a Total row at the bottom.
+def _file_summary_table(logs_dir: str) -> html.Div:
+    csv_files = _find_csv_files(logs_dir)
+    if not csv_files:
+        return html.Div()
+
+    hstyle = {'padding': '8px 14px', 'textAlign': 'left', 'color': _MUTED,
+              'fontSize': '12px', 'borderBottom': '1px solid #444',
+              'textTransform': 'uppercase', 'letterSpacing': '1px'}
+    cstyle = {'padding': '8px 14px', 'fontSize': '13px'}
+
+    headers = ['File', 'Trades', 'P&L ($)', 'Win Rate']
+    rows    = []
+    totals  = {'trades': 0, 'pnl': 0.0, 'wins': 0}
+
+    for path in csv_files:
+        df     = _load_csv(path)
+        trades = _compute_trades(df) if not df.empty else []
+        stats  = _summary(trades)
+
+        totals['trades'] += stats['total']
+        totals['pnl']    += stats['total_pnl']
+        totals['wins']   += int(round(stats['total'] * stats['win_rate'] / 100)) if stats['total'] else 0
+
+        pc = _GREEN if stats['total_pnl'] >= 0 else _RED
+        wc = _GREEN if stats['win_rate'] >= 50 else _RED
+
+        rows.append(html.Tr([
+            html.Td(path.name,                        style=cstyle),
+            html.Td(stats['total'],                   style=cstyle),
+            html.Td(f"${stats['total_pnl']:+.4f}",
+                    style={**cstyle, 'color': pc, 'fontWeight': 'bold'}),
+            html.Td(f"{stats['win_rate']}%",
+                    style={**cstyle, 'color': wc}),
+        ], style={'borderBottom': '1px solid #2e2e2e'}))
+
+    # Total row
+    total_wr  = round(totals['wins'] / totals['trades'] * 100, 1) if totals['trades'] else 0.0
+    total_pc  = _GREEN if totals['pnl'] >= 0 else _RED
+    total_wc  = _GREEN if total_wr >= 50 else _RED
+    rows.append(html.Tr([
+        html.Td('TOTAL', style={**cstyle, 'fontWeight': 'bold', 'color': _TEXT}),
+        html.Td(totals['trades'],
+                style={**cstyle, 'fontWeight': 'bold'}),
+        html.Td(f"${totals['pnl']:+.4f}",
+                style={**cstyle, 'color': total_pc, 'fontWeight': 'bold'}),
+        html.Td(f"{total_wr}%",
+                style={**cstyle, 'color': total_wc, 'fontWeight': 'bold'}),
+    ], style={'borderTop': '1px solid #555'}))
+
+    table = html.Table(
+        [html.Thead(html.Tr([html.Th(h, style=hstyle) for h in headers])),
+         html.Tbody(rows)],
+        style={'width': '100%', 'borderCollapse': 'collapse',
+               'fontFamily': 'monospace', 'color': _TEXT},
+    )
+    return html.Div(table,
+                    style={'background': _PANEL, 'borderRadius': '8px',
+                           'padding': '8px', 'overflowX': 'auto',
+                           'marginBottom': '16px'})
+
+
 # ─── Dash app ─────────────────────────────────────────────────────────────────
 
 def _build_app(logs_dir: str) -> Dash:
@@ -270,6 +332,8 @@ def _build_app(logs_dir: str) -> Dash:
             dcc.Graph(id='equity-chart', style={'height': '35vh', 'marginBottom': '16px'},
                       config={'displayModeBar': False}),
 
+            html.Div(id='file-summary'),
+
             html.Div(id='trade-table',
                      style={'background': _PANEL, 'borderRadius': '8px',
                             'padding': '8px', 'overflowX': 'auto'}),
@@ -281,6 +345,7 @@ def _build_app(logs_dir: str) -> Dash:
         Output('file-select',  'value'),
         Output('stats-row',    'children'),
         Output('equity-chart', 'figure'),
+        Output('file-summary', 'children'),
         Output('trade-table',  'children'),
         Input('interval',      'n_intervals'),
         Input('file-select',   'value'),
@@ -315,7 +380,7 @@ def _build_app(logs_dir: str) -> Dash:
                                style={'color': _MUTED, 'padding': '24px',
                                       'textAlign': 'center'}))
 
-        return options, sel, cards, _equity_figure(trades, label), table
+        return options, sel, cards, _equity_figure(trades, label), _file_summary_table(logs_dir), table
 
     return app
 
