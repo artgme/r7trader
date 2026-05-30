@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 # symbol must match Kraken's ccxt market id (base/quote)
 SYMBOL = 'BTC/USD'
-TIMEFRAME = '1m'
-HISTORY_LIMIT = 200      # how many bars to download from Kraken on start-up
-DISPLAY_BARS = 20        # how many bars to show on the x-axis (0 = all); older bars scroll off
+TIMEFRAME = '1m' # ccxt timeframes: '1m', '5m', '15m', '30m', '1h', '4h', '1d', etc.; must be supported by the exchange
+HISTORY_LIMIT = 100      # how many bars to download from Kraken on start-up
+DISPLAY_BARS = 0        # how many bars to show on the x-axis (0 = all); older bars scroll off
 POLL_INTERVAL_S = 10     # seconds between live polls (keep above Kraken rate limits)
 
 

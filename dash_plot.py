@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import pandas as pd
 import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 from flask import jsonify
 from flask import request as flask_request
 from dash import Dash, Input, Output, dcc, html
@@ -57,7 +58,16 @@ class DashPlotter:
         app = Dash(__name__)
         app.layout = html.Div([
             html.H3(self.title, style={'fontFamily': 'sans-serif', 'margin': '12px 16px 0'}),
-            dcc.Graph(id='chart', style={'height': '75vh'}),
+            dcc.Graph(id='chart', style={'height': '75vh'}, config={
+                'modeBarButtonsToAdd': [
+                    'drawline',        # straight line
+                    'drawopenpath',    # freehand line
+                    'drawrect',        # rectangle (e.g. ranges / zones)
+                    'drawcircle',      # circle / ellipse
+                    'eraseshape',      # eraser
+                ],
+                'scrollZoom': True,
+            }),
             dcc.Interval(id='interval', interval=1000, n_intervals=0),
         ])
 
@@ -151,11 +161,12 @@ class DashPlotter:
         self._app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
 
 
-# Builds a dark-themed Plotly candlestick figure from a DataFrame with columns
-# [date, open, high, low, close].  When display_bars > 0, the frame is sliced to the
-# most recent N rows and trade markers outside that window are filtered out.
-# Each distinct action in `trades` becomes a separate named scatter trace so the
-# legend shows the correct label and symbol for each marker type.
+# Builds a dark-themed Plotly figure with a candlestick panel (top, 75%) and a
+# volume bar panel (bottom, 25%) sharing the same x-axis.  Volume bars are coloured
+# green/red to match the corresponding candle direction.  When display_bars > 0 the
+# frame is sliced to the most recent N rows and trade markers outside that window are
+# filtered out.  Each distinct action in `trades` becomes a separate named scatter
+# trace on the candlestick panel so the legend shows the correct label and symbol.
 def _candlestick_figure(
     df: pd.DataFrame,
     display_hours: float = 0,
@@ -165,7 +176,15 @@ def _candlestick_figure(
     if display_bars > 0:
         df = df.iloc[-display_bars:]
 
-    fig = go.Figure(data=[go.Candlestick(
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        row_heights=[0.75, 0.25],
+        vertical_spacing=0.02,
+    )
+
+    # candlestick on top panel
+    fig.add_trace(go.Candlestick(
         x=df['date'],
         open=df['open'],
         high=df['high'],
@@ -173,13 +192,27 @@ def _candlestick_figure(
         close=df['close'],
         increasing_line_color='#26a69a',
         decreasing_line_color='#ef5350',
-    )])
+        name='Price',
+    ), row=1, col=1)
 
-    xaxis = dict(showgrid=False, color='#888')
+    # volume bars on bottom panel; green for up-candles, red for down-candles
+    vol_colors = [
+        '#26a69a' if c >= o else '#ef5350'
+        for o, c in zip(df['open'], df['close'])
+    ]
+    fig.add_trace(go.Bar(
+        x=df['date'],
+        y=df['volume'],
+        marker_color=vol_colors,
+        name='Volume',
+        showlegend=False,
+    ), row=2, col=1)
+
+    xaxis_style = dict(showgrid=False, color='#888')
     if display_hours > 0:
         end = pd.Timestamp(df['date'].max())
         start = end - pd.Timedelta(hours=display_hours)
-        xaxis['range'] = [start, end]
+        xaxis_style['range'] = [start, end]
 
     # group trade markers by action type; filter to the visible time window
     if trades:
@@ -204,15 +237,17 @@ def _candlestick_figure(
                     size=style['size'],
                     line=dict(color='white', width=1),
                 ),
-            ))
+            ), row=1, col=1)
 
     fig.update_layout(
+        uirevision='lock',  # keeps zoom/pan state when the figure is redrawn by the interval callback
         xaxis_rangeslider_visible=False,
         paper_bgcolor='#1e1e1e',
         plot_bgcolor='#1e1e1e',
         font=dict(color='#ccc'),
-        xaxis=xaxis,
+        xaxis=xaxis_style,
         yaxis=dict(showgrid=True, gridcolor='#333', color='#888'),
+        yaxis2=dict(showgrid=False, color='#888'),
         margin=dict(l=50, r=20, t=20, b=40),
         legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(size=11)),
     )

@@ -117,11 +117,11 @@ class CexTrader:
     def stream_live_ohlcv(
         self,
         symbol: str,
-        timeframe: str,
+        timeframe: str, #taking data every this
         callback,
         stop_event: threading.Event,
         seed_bars: int = 5,
-        poll_interval_s: int = 5,
+        poll_interval_s: int = 5, #polling every this
     ) -> None:
         if self.exchange is None:
             print("ERROR: Not connected. Call connect() first.")
@@ -135,7 +135,7 @@ class CexTrader:
                 fetch_limit = seed_bars if last_ts is None else 3
                 bars = self.exchange.fetch_ohlcv(symbol, timeframe, limit=fetch_limit)
                 for bar in bars:
-                    if last_ts is None or bar[0] > last_ts:
+                    if last_ts is None or bar[0] > last_ts: #discard  incomplete bars (data download every 10s but take only closed bars)
                         callback(bar)
                         last_ts = bar[0]
             except ccxt.BaseError as e:
