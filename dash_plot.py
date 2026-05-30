@@ -1,12 +1,39 @@
 import logging
 import queue
 import threading
+from collections import defaultdict
 
 import pandas as pd
 import plotly.graph_objs as go
+from flask import jsonify
+from flask import request as flask_request
 from dash import Dash, Input, Output, dcc, html
 
 logger = logging.getLogger(__name__)
+
+# Visual style for each of the 12 standard trading actions.
+# Keys are the action strings accepted by the /trade endpoint.
+# symbol: Plotly marker symbol; color: hex; size: px; label: legend entry.
+# Long/short variants of the same action share a colour family but differ in symbol
+# (filled vs open) so they remain distinguishable when both appear on the same chart.
+MARKER_STYLES: dict[str, dict] = {
+    # ── entries ─────────────────────────────────────────────────────────────
+    'enter_long':          dict(symbol='triangle-up',   color='#00c853', size=14, label='Enter Long'),
+    'enter_short':         dict(symbol='triangle-down', color='#d50000', size=14, label='Enter Short'),
+    # ── long exits ──────────────────────────────────────────────────────────
+    'exit_long_sl':        dict(symbol='x',             color='#ef5350', size=13, label='Exit Long – Stop Loss'),
+    'exit_long_tp':        dict(symbol='star',          color='#69f0ae', size=14, label='Exit Long – Take Profit'),
+    'exit_long_tsl':       dict(symbol='circle',        color='#ff9800', size=12, label='Exit Long – Trailing Stop'),
+    'exit_long_special':   dict(symbol='diamond',       color='#00bcd4', size=12, label='Exit Long – Special'),
+    # ── short exits ─────────────────────────────────────────────────────────
+    'exit_short_sl':       dict(symbol='cross',         color='#ef5350', size=13, label='Exit Short – Stop Loss'),
+    'exit_short_tp':       dict(symbol='star-open',     color='#69f0ae', size=14, label='Exit Short – Take Profit'),
+    'exit_short_tsl':      dict(symbol='circle-open',   color='#ff9800', size=12, label='Exit Short – Trailing Stop'),
+    'exit_short_special':  dict(symbol='diamond-open',  color='#00bcd4', size=12, label='Exit Short – Special'),
+    # ── reversals ───────────────────────────────────────────────────────────
+    'reverse_short_long':  dict(symbol='arrow-up',      color='#ce93d8', size=16, label='Reverse → Long'),
+    'reverse_long_short':  dict(symbol='arrow-down',    color='#ce93d8', size=16, label='Reverse → Short'),
+}
 
 
 class DashPlotter:
@@ -18,12 +45,14 @@ class DashPlotter:
         self.display_bars = display_bars    # 0 = show all; >0 clips to last N candles (overrides display_hours)
         self._queue: queue.Queue = queue.Queue()
         self._df: pd.DataFrame = pd.DataFrame()
+        self._trades: list[dict] = []       # trade markers received via POST /trade
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._app = self._build_app()
 
-    # Creates the Dash app with an H3 title, a candlestick Graph, and a 1-second Interval
-    # that fires the `refresh` callback to pull new bars from the queue and redraw the chart.
+    # Creates the Dash app layout and registers two server-side handlers:
+    #   - the `refresh` Dash callback that redraws the chart every second
+    #   - the Flask POST /trade route that accepts trade marker events from any process
     def _build_app(self) -> Dash:
         app = Dash(__name__)
         app.layout = html.Div([
@@ -37,13 +66,43 @@ class DashPlotter:
             self._drain_queue()
             with self._lock:
                 df = self._df.copy()
+                trades = list(self._trades)
             if df.empty:
                 return go.Figure(layout=go.Layout(
                     paper_bgcolor='#1e1e1e', plot_bgcolor='#1e1e1e',
                     font=dict(color='#aaa'),
                     annotations=[dict(text='Waiting for data…', showarrow=False, font=dict(size=18, color='#666'))],
                 ))
-            return _candlestick_figure(df, self.display_hours, self.display_bars)
+            return _candlestick_figure(df, self.display_hours, self.display_bars, trades)
+
+        # Any external process can POST {"action": "enter_long", "price": 73500.0, "date": "<ISO>"}
+        # to this endpoint to place a marker on the chart.
+        @app.server.route('/trade', methods=['POST'])
+        def add_trade():
+            data = flask_request.get_json(silent=True)
+            if not data:
+                return jsonify({'error': 'JSON body required'}), 400
+            for field in ('action', 'price', 'date'):
+                if field not in data:
+                    return jsonify({'error': f"'{field}' is required"}), 400
+            if data['action'] not in MARKER_STYLES:
+                return jsonify({'error': f"unknown action '{data['action']}'; valid: {list(MARKER_STYLES)}"}), 400
+            with self._lock:
+                self._trades.append(data)
+            return jsonify({'status': 'ok'})
+
+        # Returns the most recent close price and its timestamp from the live DataFrame.
+        # Used by external scripts to place markers at the correct price level automatically.
+        @app.server.route('/last_price', methods=['GET'])
+        def last_price():
+            with self._lock:
+                if self._df.empty:
+                    return jsonify({'error': 'no data yet'}), 503
+                row = self._df.iloc[-1]
+            return jsonify({
+                'price': float(row['close']),
+                'date':  str(row['date']),
+            })
 
         return app
 
@@ -93,12 +152,19 @@ class DashPlotter:
 
 
 # Builds a dark-themed Plotly candlestick figure from a DataFrame with columns
-# [date, open, high, low, close].  When display_hours > 0, the x-axis is clamped to
-# the most recent N hours so the chart doesn't compress historical data into view.
-def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0, display_bars: int = 0) -> go.Figure:
-    # display_bars takes priority: slice the DataFrame to the most recent N rows
+# [date, open, high, low, close].  When display_bars > 0, the frame is sliced to the
+# most recent N rows and trade markers outside that window are filtered out.
+# Each distinct action in `trades` becomes a separate named scatter trace so the
+# legend shows the correct label and symbol for each marker type.
+def _candlestick_figure(
+    df: pd.DataFrame,
+    display_hours: float = 0,
+    display_bars: int = 0,
+    trades: list[dict] | None = None,
+) -> go.Figure:
     if display_bars > 0:
         df = df.iloc[-display_bars:]
+
     fig = go.Figure(data=[go.Candlestick(
         x=df['date'],
         open=df['open'],
@@ -108,11 +174,38 @@ def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0, display_bars
         increasing_line_color='#26a69a',
         decreasing_line_color='#ef5350',
     )])
+
     xaxis = dict(showgrid=False, color='#888')
     if display_hours > 0:
         end = pd.Timestamp(df['date'].max())
         start = end - pd.Timedelta(hours=display_hours)
         xaxis['range'] = [start, end]
+
+    # group trade markers by action type; filter to the visible time window
+    if trades:
+        visible_start = pd.Timestamp(df['date'].min())
+        by_action: dict[str, list] = defaultdict(list)
+        for t in trades:
+            ts = pd.Timestamp(t['date'])
+            if display_bars == 0 or ts >= visible_start:
+                by_action[t['action']].append((ts, float(t['price'])))
+
+        for action, points in by_action.items():
+            style = MARKER_STYLES[action]
+            xs, ys = zip(*points)
+            fig.add_trace(go.Scatter(
+                x=list(xs),
+                y=list(ys),
+                mode='markers',
+                name=style['label'],
+                marker=dict(
+                    symbol=style['symbol'],
+                    color=style['color'],
+                    size=style['size'],
+                    line=dict(color='white', width=1),
+                ),
+            ))
+
     fig.update_layout(
         xaxis_rangeslider_visible=False,
         paper_bgcolor='#1e1e1e',
@@ -121,5 +214,6 @@ def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0, display_bars
         xaxis=xaxis,
         yaxis=dict(showgrid=True, gridcolor='#333', color='#888'),
         margin=dict(l=50, r=20, t=20, b=40),
+        legend=dict(bgcolor='rgba(0,0,0,0)', font=dict(size=11)),
     )
     return fig
