@@ -26,7 +26,9 @@ from dash import Dash, Input, Output, dcc, html
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-PORT     = 8052
+PORT            = 8052
+REFRESH_INTERVAL_S = 15      # how often the dashboard re-reads the CSV (seconds)
+
 _DARK    = '#1e1e1e'
 _PANEL   = '#2a2a2a'
 _GREEN   = '#26a69a'
@@ -232,7 +234,7 @@ def _build_app(csv_path: str) -> Dash:
                                   'margin': '0 0 16px 4px'}),
 
         # auto-refresh every 5 seconds
-        dcc.Interval(id='interval', interval=5_000, n_intervals=0),
+        dcc.Interval(id='interval', interval=REFRESH_INTERVAL_S * 1000, n_intervals=0),
 
         # summary stat cards
         html.Div(id='stats-row', style={
