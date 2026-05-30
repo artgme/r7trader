@@ -35,7 +35,7 @@ SYMBOLS_TO_CHART = [
 
 HISTORY_LIMIT   = 100   # bars downloaded per symbol on start-up
 DISPLAY_BARS    = 0     # 0 = show all; >0 keeps only the last N candles visible
-POLL_INTERVAL_S = 10    # seconds between live polls (keep above Kraken rate limits)
+POLL_INTERVAL_S = 30    # seconds between live polls (keep above Kraken rate limits)
 
 
 # ccxt returns timestamps in milliseconds; convert to a tz-aware datetime for DashPlotter
