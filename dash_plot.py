@@ -10,11 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class DashPlotter:
-    def __init__(self, title: str = 'Live Chart', host: str = '127.0.0.1', port: int = 8050, display_hours: float = 0):
+    def __init__(self, title: str = 'Live Chart', host: str = '127.0.0.1', port: int = 8050, display_hours: float = 0, display_bars: int = 0):
         self.title = title
         self.host = host
         self.port = port
         self.display_hours = display_hours  # 0 = show all data
+        self.display_bars = display_bars    # 0 = show all; >0 clips to last N candles (overrides display_hours)
         self._queue: queue.Queue = queue.Queue()
         self._df: pd.DataFrame = pd.DataFrame()
         self._lock = threading.Lock()
@@ -42,7 +43,7 @@ class DashPlotter:
                     font=dict(color='#aaa'),
                     annotations=[dict(text='Waiting for data…', showarrow=False, font=dict(size=18, color='#666'))],
                 ))
-            return _candlestick_figure(df, self.display_hours)
+            return _candlestick_figure(df, self.display_hours, self.display_bars)
 
         return app
 
@@ -94,7 +95,10 @@ class DashPlotter:
 # Builds a dark-themed Plotly candlestick figure from a DataFrame with columns
 # [date, open, high, low, close].  When display_hours > 0, the x-axis is clamped to
 # the most recent N hours so the chart doesn't compress historical data into view.
-def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0) -> go.Figure:
+def _candlestick_figure(df: pd.DataFrame, display_hours: float = 0, display_bars: int = 0) -> go.Figure:
+    # display_bars takes priority: slice the DataFrame to the most recent N rows
+    if display_bars > 0:
+        df = df.iloc[-display_bars:]
     fig = go.Figure(data=[go.Candlestick(
         x=df['date'],
         open=df['open'],

@@ -10,6 +10,9 @@ Credentials are loaded from the .env file:
 """
 
 import os
+import threading
+from datetime import datetime
+
 import ccxt
 from dotenv import load_dotenv
 
@@ -20,18 +23,16 @@ class CexTrader:
     def __init__(self) -> None:
         self.exchange: ccxt.Exchange | None = None
 
+    # Initialise the Kraken client with API credentials from .env and verify the
+    # connection by loading all available markets.  Returns True on success, False
+    # if credentials are missing, invalid, or the network is unreachable.
     def connect(self) -> bool:
-        """
-        Initialise the Kraken client and verify credentials by loading markets.
-        Returns True on success, False if credentials are missing or invalid.
-        """
         api_key = os.getenv("R2TRADER_KRAKEN_API_KEY")
         api_secret = os.getenv("R2TRADER_KRAKEN_API_SECRET")
 
         if not api_key or not api_secret:
             print("ERROR: R2TRADER_KRAKEN_API_KEY and R2TRADER_KRAKEN_API_SECRET not found in .env")
             return False
-
 
         self.exchange = ccxt.kraken({
             "apiKey": api_key,
@@ -50,11 +51,9 @@ class CexTrader:
             print(f"ERROR: Network error while connecting to Kraken: {e}")
             return False
 
+    # Fetch and print all non-zero spot balances for the authenticated account.
+    # Returns a dict of {currency: total} or None if not connected.
     def get_balances(self) -> dict | None:
-        """
-        Fetch and display all non-zero spot balances.
-        Returns a dict of {currency: total} or None if not connected.
-        """
         if self.exchange is None:
             print("ERROR: Not connected. Call connect() first.")
             return None
@@ -65,7 +64,6 @@ class CexTrader:
             print(f"ERROR: Failed to fetch balances: {e}")
             return None
 
-        # filter out currencies with zero total balance
         non_zero = {
             currency: amount
             for currency, amount in balance["total"].items()
@@ -80,6 +78,70 @@ class CexTrader:
             print("No open balances.")
 
         return non_zero
+
+    # Download historical OHLCV bars for `symbol` (e.g. 'BTC/USD') at the given
+    # `timeframe` (e.g. '1m', '5m', '1h', '1d').  `since` is an optional datetime
+    # marking the start of the range; omitting it lets the exchange choose the
+    # default window.  `limit` caps the number of returned bars (Kraken max: 720).
+    # Returns a list of [timestamp_ms, open, high, low, close, volume] lists,
+    # or None if not connected or a network/API error occurs.
+    def fetch_historical_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        since: datetime | None = None,
+        limit: int = 500,
+    ) -> list[list] | None:
+        if self.exchange is None:
+            print("ERROR: Not connected. Call connect() first.")
+            return None
+
+        since_ms = int(since.timestamp() * 1000) if since else None
+
+        try:
+            bars = self.exchange.fetch_ohlcv(symbol, timeframe, since=since_ms, limit=limit)
+            print(f"Fetched {len(bars)} historical bars for {symbol} [{timeframe}].")
+            return bars
+        except ccxt.BadSymbol:
+            print(f"ERROR: Symbol '{symbol}' not available on Kraken.")
+            return None
+        except ccxt.BaseError as e:
+            print(f"ERROR: Failed to fetch historical OHLCV: {e}")
+            return None
+
+    # Poll the exchange for new OHLCV bars in a blocking loop until `stop_event` is set.
+    # Calls `callback(bar)` for each bar where `bar` is [ts_ms, open, high, low, close, volume].
+    # On start-up, the last `seed_bars` completed bars are delivered immediately so the
+    # caller has data to display before live ticks arrive.  `poll_interval_s` controls
+    # how often the exchange is queried; 5 s is a safe default for 1-minute bars.
+    def stream_live_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        callback,
+        stop_event: threading.Event,
+        seed_bars: int = 5,
+        poll_interval_s: int = 5,
+    ) -> None:
+        if self.exchange is None:
+            print("ERROR: Not connected. Call connect() first.")
+            return
+
+        last_ts: int | None = None
+
+        while not stop_event.is_set():
+            try:
+                # fetch a small window; the first pass seeds the chart with recent bars
+                fetch_limit = seed_bars if last_ts is None else 3
+                bars = self.exchange.fetch_ohlcv(symbol, timeframe, limit=fetch_limit)
+                for bar in bars:
+                    if last_ts is None or bar[0] > last_ts:
+                        callback(bar)
+                        last_ts = bar[0]
+            except ccxt.BaseError as e:
+                print(f"ERROR: Live stream fetch failed: {e}")
+
+            stop_event.wait(poll_interval_s)
 
 
 if __name__ == "__main__":
