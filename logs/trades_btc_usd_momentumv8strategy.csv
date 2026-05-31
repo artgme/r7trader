@@ -1,1 +1,5 @@
 timestamp,symbol,broker,action,price,size,position_after
+2026-05-31T15:16:12.456323+00:00,BTC/USD,ccxt,enter_long,73868.2000,1.0000,long
+2026-05-31T15:16:12.458870+00:00,BTC/USD,ccxt,exit_long_sl,73781.9000,1.0000,flat
+2026-05-31T15:16:12.461506+00:00,BTC/USD,ccxt,enter_short,73616.5000,1.0000,short
+2026-05-31T15:16:12.463238+00:00,BTC/USD,ccxt,exit_short_tp,73562.2000,1.0000,flat

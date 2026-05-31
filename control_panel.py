@@ -23,7 +23,7 @@ import backtrader as bt
 from dash import ALL, Dash, Input, Output, State, callback_context, dcc, html
 from dash.exceptions import PreventUpdate
 
-from configs import get_params
+from configs import get_params, get_symbols, get_timeframes
 from mozg import Mozg
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -38,8 +38,6 @@ _GREEN = '#26a69a'
 _RED   = '#ef5350'
 _TEXT  = '#ccc'
 _MUTED = '#888'
-
-TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d']
 
 
 # ─── Strategy discovery ───────────────────────────────────────────────────────
@@ -178,6 +176,9 @@ def _field(label: str, control) -> html.Div:
 def _build_app() -> Dash:
     strategy_options = [{'label': k, 'value': k} for k in sorted(STRATEGIES)]
     first_strategy   = sorted(STRATEGIES)[0] if STRATEGIES else None
+    first_symbols    = get_symbols(first_strategy) if first_strategy else []
+    first_symbol     = first_symbols[0] if first_symbols else None
+    first_timeframes = get_timeframes(first_strategy, first_symbol) if first_symbol else []
 
     input_style = {
         'background': '#333', 'color': _TEXT, 'border': '1px solid #444',
@@ -201,18 +202,20 @@ def _build_app() -> Dash:
                          style={'color': _MUTED, 'fontSize': '11px', 'letterSpacing': '1px',
                                 'textTransform': 'uppercase', 'marginBottom': '14px'}),
                 html.Div([
-                    _field('Symbol',
-                           dcc.Input(id='inp-symbol', type='text', value='SOL/USD',
-                                     debounce=True, style={**input_style, 'width': '110px'})),
-                    _field('Timeframe',
-                           dcc.Dropdown(id='inp-timeframe', clearable=False,
-                                        options=[{'label': t, 'value': t} for t in TIMEFRAMES],
-                                        value='1m',
-                                        style={'width': '90px', 'color': '#000'})),
                     _field('Strategy',
                            dcc.Dropdown(id='inp-strategy', clearable=False,
                                         options=strategy_options, value=first_strategy,
                                         style={'width': '210px', 'color': '#000'})),
+                    _field('Symbol',
+                           dcc.Dropdown(id='inp-symbol', clearable=False,
+                                        options=[{'label': s, 'value': s} for s in first_symbols],
+                                        value=first_symbol,
+                                        style={'width': '140px', 'color': '#000'})),
+                    _field('Timeframe',
+                           dcc.Dropdown(id='inp-timeframe', clearable=False,
+                                        options=[{'label': t, 'value': t} for t in first_timeframes],
+                                        value=first_timeframes[0] if first_timeframes else None,
+                                        style={'width': '90px', 'color': '#000'})),
                     _field('Size',
                            dcc.Input(id='inp-size', type='number', value=1.0,
                                      min=0.0001, step=0.0001,
@@ -264,6 +267,31 @@ def _build_app() -> Dash:
             ], style={'background': _PANEL, 'padding': '18px', 'borderRadius': '8px'}),
         ],
     )
+
+    # ── Strategy → symbol cascade ─────────────────────────────────────────────
+    @app.callback(
+        Output('inp-symbol', 'options'),
+        Output('inp-symbol', 'value'),
+        Input('inp-strategy', 'value'),
+    )
+    def update_symbols(strategy_name):
+        symbols = get_symbols(strategy_name) if strategy_name else []
+        options = [{'label': s, 'value': s} for s in symbols]
+        value   = symbols[0] if symbols else None
+        return options, value
+
+    # ── Strategy + symbol → timeframe cascade ─────────────────────────────────
+    @app.callback(
+        Output('inp-timeframe', 'options'),
+        Output('inp-timeframe', 'value'),
+        Input('inp-strategy', 'value'),
+        Input('inp-symbol',   'value'),
+    )
+    def update_timeframes(strategy_name, symbol):
+        tfs     = get_timeframes(strategy_name, symbol) if strategy_name and symbol else []
+        options = [{'label': t, 'value': t} for t in tfs]
+        value   = tfs[0] if tfs else None
+        return options, value
 
     # ── Add button ────────────────────────────────────────────────────────────
     @app.callback(

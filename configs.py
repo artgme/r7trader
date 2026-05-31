@@ -21,7 +21,7 @@ PARAMS: dict = {
     # ── MomentumV8 ────────────────────────────────────────────────────────────
     # High-volume candle momentum with trailing stop + hard stop.
     # Tune vol_multiplier up on noisy symbols; tighten stops on volatile ones.
-    'MomentumV8': {
+    'MomentumV8Strategy': {
 
         # ── Crypto (ccxt) ──────────────────────────────────────────────────
         'SOL/USD': {
@@ -82,7 +82,7 @@ PARAMS: dict = {
     # ── MomentumV11 ───────────────────────────────────────────────────────────
     # V8 + ADX regime filter + body-quality filter + trail activation gate.
     # Raise adx_threshold on trending symbols; lower it on ranging ones.
-    'MomentumV11': {
+    'MomentumV11Strategy': {
 
         # ── Crypto (ccxt) ──────────────────────────────────────────────────
         'SOL/USD': {
@@ -162,6 +162,20 @@ PARAMS: dict = {
         },
     },
 }
+
+
+_TF_ORDER = ['1m', '5m', '15m', '30m', '1h', '4h', '1d']
+
+
+def get_symbols(strategy_name: str) -> list[str]:
+    """Return the sorted list of symbols configured for the given strategy."""
+    return sorted(PARAMS.get(strategy_name, {}).keys())
+
+
+def get_timeframes(strategy_name: str, symbol: str) -> list[str]:
+    """Return timeframes for the given strategy/symbol, in natural order."""
+    defined = set(PARAMS.get(strategy_name, {}).get(symbol, {}).keys())
+    return [tf for tf in _TF_ORDER if tf in defined]
 
 
 def get_params(strategy_name: str, symbol: str, timeframe: str) -> dict:
