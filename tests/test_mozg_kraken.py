@@ -20,7 +20,10 @@ Usage
 import logging
 import os
 import signal
+import sys
 import threading
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from configs import get_params
 from mozg import Mozg

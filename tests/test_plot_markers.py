@@ -14,7 +14,11 @@ Usage:
 """
 
 import logging
+import os
+import sys
 from datetime import datetime, timezone, timedelta
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import requests
 

@@ -10,8 +10,11 @@ Thread layout
 
 import logging
 import os
+import sys
 import threading
 import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ib_insync import util
 

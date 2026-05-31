@@ -14,9 +14,12 @@ Thread layout
 
 import logging
 import os
+import sys
 import threading
 import time
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from dash_plot import DashPlotter
 from cex import CexTrader
