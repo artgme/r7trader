@@ -87,7 +87,8 @@ def _uid(symbol: str, strategy_name: str) -> str:
 # Connect and launch a Mozg engine in a daemon thread.
 # Returns the uid on success, None on failure.
 def _start_engine(symbol: str, timeframe: str, strategy_name: str,
-                  size: float, broker: str, paper_mode: bool) -> str | None:
+                  size: float, broker: str, paper_mode: bool,
+                  order_type: str = 'market') -> str | None:
     uid = _uid(symbol, strategy_name)
 
     with _reg_lock:
@@ -102,6 +103,8 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
         return None
 
     params = get_params(strategy_name, symbol, timeframe)
+    trail_pct = params.get('trail_stop_pct')
+    tp_price  = params.get('take_profit_price')
     params['printlog'] = True
 
     safe_sym = symbol.replace('/', '_').lower()
@@ -119,6 +122,7 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
         dash_url        = DASH_URL,
         csv_path        = csv_path,
         paper_mode      = paper_mode,
+        order_type      = order_type,
     )
 
     if not engine.connect():
@@ -142,6 +146,9 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
                 'broker':    broker,
                 'paper':     paper_mode,
                 'size':      size,
+                'trail_pct':  trail_pct,
+                'tp_price':   tp_price,
+                'order_type': order_type,
             },
             'started_at': datetime.now(timezone.utc).strftime('%H:%M:%S'),
         }
@@ -233,6 +240,13 @@ def _build_app() -> Dash:
                                           value='yes',
                                           inline=True,
                                           style={'color': _TEXT, 'marginTop': '6px'})),
+                    _field('Order type',
+                           dcc.RadioItems(id='inp-order-type',
+                                          options=[{'label': ' Market', 'value': 'market'},
+                                                   {'label': ' Limit',  'value': 'limit'}],
+                                          value='market',
+                                          inline=True,
+                                          style={'color': _TEXT, 'marginTop': '6px'})),
                     html.Div(
                         html.Button('Add Symbol', id='btn-add', n_clicks=0,
                                     style={'background': _GREEN, 'color': 'white',
@@ -301,16 +315,18 @@ def _build_app() -> Dash:
         State('inp-timeframe','value'),
         State('inp-strategy', 'value'),
         State('inp-size',     'value'),
-        State('inp-broker',   'value'),
-        State('inp-paper',    'value'),
+        State('inp-broker',      'value'),
+        State('inp-paper',       'value'),
+        State('inp-order-type',  'value'),
         prevent_initial_call=True,
     )
-    def on_add(_n, symbol, timeframe, strategy, size, broker, paper):
+    def on_add(_n, symbol, timeframe, strategy, size, broker, paper, order_type):
         if not symbol or not strategy:
             return 'Please fill in all fields.'
         uid = _start_engine(
             symbol.strip(), timeframe, strategy,
             float(size or 1.0), broker, paper == 'yes',
+            order_type or 'market',
         )
         if uid:
             return f'✓ Engine started: {uid}'
@@ -348,7 +364,7 @@ def _build_app() -> Dash:
             cstyle = {'padding': '8px 12px', 'fontSize': '13px', 'color': _TEXT}
 
             headers = ['Symbol', 'TF', 'Strategy', 'Broker',
-                       'Paper', 'Size', 'Position', 'Status', 'Started', '']
+                       'Paper', 'Size', 'Position', 'T-SL', 'TP', 'Entry', 'Status', 'Started', '']
             rows = []
             for uid, entry in entries:
                 cfg    = entry['cfg']
@@ -358,6 +374,9 @@ def _build_app() -> Dash:
 
                 pos_color    = _GREEN if pos == 'long' else (_RED if pos == 'short' else _MUTED)
                 status_color = _GREEN if alive else _RED
+
+                trail_pct = cfg.get('trail_pct')
+                tp_price  = cfg.get('tp_price')
 
                 rows.append(html.Tr([
                     html.Td(cfg['symbol'],    style=cstyle),
@@ -370,6 +389,9 @@ def _build_app() -> Dash:
                     html.Td(cfg['size'],      style=cstyle),
                     html.Td(pos.upper(),
                             style={**cstyle, 'color': pos_color, 'fontWeight': 'bold'}),
+                    html.Td(f'{trail_pct}%' if trail_pct is not None else '—', style=cstyle),
+                    html.Td(str(tp_price)   if tp_price  is not None else '—', style=cstyle),
+                    html.Td('LMT' if cfg.get('order_type') == 'limit' else 'MKT', style=cstyle),
                     html.Td('Running' if alive else 'Stopped',
                             style={**cstyle, 'color': status_color}),
                     html.Td(entry['started_at'], style=cstyle),

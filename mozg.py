@@ -128,12 +128,18 @@ class Mozg:
         csv_path: str = 'trades.csv',
         starting_cash: float = 1_000_000.0,
         paper_mode: bool = True,
+        order_type: str = 'market',   # 'market' | 'limit'
     ):
         self.symbol          = symbol
         self.timeframe       = timeframe
         self.strategy_class  = strategy_class
         self.strategy_params = strategy_params or {}
         self.broker_type     = broker_type
+        # Bracket order params read from strategy_params; used by the IBKR entry path.
+        # take_profit_price is mozg-level only and not forwarded to BT unless the strategy
+        # explicitly declares it in its params tuple (e.g. RSIBracketStrategy).
+        self._bracket_trail_pct   = self.strategy_params.get('trail_stop_pct')
+        self._bracket_take_profit = self.strategy_params.get('take_profit_price')
         self.trade_size      = trade_size
         self.history_limit   = history_limit
         self.poll_interval_s = poll_interval_s
@@ -141,6 +147,7 @@ class Mozg:
         self.csv_path        = csv_path
         self.starting_cash   = starting_cash
         self.paper_mode      = paper_mode   # True = log signals but never send real orders
+        self.order_type      = order_type   # 'market' | 'limit' (limit uses last bar close)
 
         # public — readable from outside at any time
         self.position: str = FLAT   # 'flat' | 'long' | 'short'
@@ -327,7 +334,18 @@ class Mozg:
         while not self._stop_event.is_set():
             try:
                 req = self._ibkr_order_queue.get_nowait()
-                self._trader.place_market_order(self._ibkr_contract, req['side'], req['size'])
+                if req.get('is_entry') and self._bracket_trail_pct is not None:
+                    limit_price = self._last_price if self.order_type == 'limit' else None
+                    self._trader.place_bracket_trailing(
+                        self._ibkr_contract,
+                        action=req['side'],
+                        quantity=req['size'],
+                        trail_percent=self._bracket_trail_pct,
+                        limit_price=limit_price,
+                        take_profit_price=self._bracket_take_profit,
+                    )
+                else:
+                    self._trader.place_market_order(self._ibkr_contract, req['side'], req['size'])
                 logger.info('IBKR ORDER  %s  size=%.4f', req['side'], req['size'])
             except queue.Empty:
                 pass
@@ -374,7 +392,11 @@ class Mozg:
         elif self.broker_type == 'ccxt':
             self._execute_ccxt('buy' if is_buy else 'sell', size)
         else:
-            self._ibkr_order_queue.put({'side': 'BUY' if is_buy else 'SELL', 'size': size})
+            self._ibkr_order_queue.put({
+                'side': 'BUY' if is_buy else 'SELL',
+                'size': size,
+                'is_entry': action in ('enter_long', 'enter_short'),
+            })
 
         self.position = new_position
         self._send_dash_marker(action, price)

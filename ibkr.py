@@ -1,5 +1,6 @@
 import logging
-from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, Contract
+import uuid
+from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, LimitOrder, Order, Contract
 
 # Basic default settings for IBKR Gateway / TWS
 HOST = '127.0.0.1'
@@ -93,6 +94,81 @@ class IBKRGateway:
     # Returns an empty list when the account is flat.
     def get_positions(self) -> list:
         return self.ib.positions()
+
+    # Places a market or limit entry with a trailing stop and an optional take-profit limit.
+    # limit_price=None uses a MarketOrder; a numeric value uses a LimitOrder.
+    # When both TP and trail are present they are linked via an OCA group so the first
+    # exit to trigger cancels the other.
+    # trail_percent: trail by %, e.g. 2.0 means 2%.  Pass trail_amount instead for a fixed $ trail.
+    # Returns (entry_trade, take_profit_trade_or_None, trailing_stop_trade).
+    def place_bracket_trailing(
+        self,
+        contract: Contract,
+        action: str,
+        quantity: float,
+        trail_percent: float = None,
+        trail_amount: float = None,
+        limit_price: float = None,
+        take_profit_price: float = None,
+    ):
+        if trail_percent is None and trail_amount is None:
+            raise ValueError('Provide either trail_percent or trail_amount')
+        if trail_percent is not None and trail_amount is not None:
+            raise ValueError('Provide only one of trail_percent or trail_amount')
+
+        action = action.upper()
+        exit_action = 'SELL' if action == 'BUY' else 'BUY'
+
+        if limit_price is not None:
+            entry = LimitOrder(action, quantity, limit_price, transmit=False)
+        else:
+            entry = MarketOrder(action, quantity, transmit=False)
+        placed_entry = self.ib.placeOrder(contract, entry)
+        parent_id = placed_entry.order.orderId
+
+        placed_tp = None
+        if take_profit_price is not None:
+            oca_group = f'OCA-{uuid.uuid4().hex[:8]}'
+            tp = LimitOrder(exit_action, quantity, take_profit_price, transmit=False)
+            tp.parentId = parent_id
+            tp.ocaGroup = oca_group
+            tp.ocaType = 1
+        else:
+            oca_group = None
+
+        trail = Order()
+        trail.action = exit_action
+        trail.orderType = 'TRAIL'
+        trail.totalQuantity = quantity
+        trail.parentId = parent_id
+        trail.transmit = True
+        if oca_group:
+            trail.ocaGroup = oca_group
+            trail.ocaType = 1
+        if trail_percent is not None:
+            trail.trailingPercent = trail_percent
+        else:
+            trail.auxPrice = trail_amount
+
+        logger.info(
+            'Placing bracket: %s %s %s @ %s | TP=%s | trail=%s',
+            action, quantity, contract.symbol if hasattr(contract, 'symbol') else contract.secType,
+            f'{limit_price:.4f}' if limit_price is not None else 'MARKET',
+            f'{take_profit_price:.4f}' if take_profit_price is not None else 'none',
+            f'{trail_percent}%' if trail_percent is not None else f'${trail_amount}',
+        )
+
+        if take_profit_price is not None:
+            placed_tp = self.ib.placeOrder(contract, tp)
+        placed_trail = self.ib.placeOrder(contract, trail)
+        self.ib.sleep(1)
+
+        logger.info('Entry status: %s', placed_entry.orderStatus.status)
+        if placed_tp:
+            logger.info('TP status: %s', placed_tp.orderStatus.status)
+        logger.info('Trail status: %s', placed_trail.orderStatus.status)
+
+        return placed_entry, placed_tp, placed_trail
 
     # Submits a market order and waits 1 second for IBKR to echo back the initial order status.
     # Returns a Trade object whose .orderStatus.status reflects the current state

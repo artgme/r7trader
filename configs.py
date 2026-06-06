@@ -161,6 +161,47 @@ PARAMS: dict = {
             '5m':  {'rsi_period': 14, 'oversold': 33, 'overbought': 67},
         },
     },
+
+    # ── RSIBracketStrategy ────────────────────────────────────────────────────
+    # RSI mean-reversion entry with IBKR bracket exit (trailing stop + optional TP).
+    #
+    # Bracket params (read by mozg, not used inside backtrader simulation):
+    #   trail_stop_pct    — trailing stop distance in % (required for bracket)
+    #   take_profit_price — if set, a TP LimitOrder is added to the bracket;
+    #                       omit (or None) for trailing-stop-only exit
+    #
+    # Market vs Limit entry order is selected at runtime in the control panel,
+    # not stored here.  When Limit is chosen mozg uses the last bar close price.
+    'RSIBracketStrategy': {
+
+        # ── Crypto (ccxt) ──────────────────────────────────────────────────
+        'SOL/USD': {
+            '5m':  {'rsi_period': 14, 'oversold': 30, 'overbought': 70,
+                    'trail_stop_pct': 3.0},
+            '15m': {'rsi_period': 14, 'oversold': 28, 'overbought': 72,
+                    'trail_stop_pct': 4.0},
+        },
+        'BTC/USD': {
+            '5m':  {'rsi_period': 14, 'oversold': 32, 'overbought': 68,
+                    'trail_stop_pct': 2.0},
+        },
+
+        # ── Stocks (IBKR) ──────────────────────────────────────────────────
+        # Example with take_profit_price: update the price to match current market
+        # before running live.  Set to None (or remove the key) to use trailing
+        # stop only.
+        'AAPL': {
+            '5m':  {'rsi_period': 14, 'oversold': 35, 'overbought': 65,
+                    'trail_stop_pct': 2.0},
+            '15m': {'rsi_period': 14, 'oversold': 30, 'overbought': 70,
+                    'trail_stop_pct': 2.5,
+                    'take_profit_price': None},   # set a price here to activate TP
+        },
+        'TSLA': {
+            '5m':  {'rsi_period': 14, 'oversold': 30, 'overbought': 70,
+                    'trail_stop_pct': 3.5},
+        },
+    },
 }
 
 
