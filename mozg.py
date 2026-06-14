@@ -43,6 +43,7 @@ _IBKR_BAR_SIZE: dict = {
 class _QueueFeed(bt.feed.DataBase):
     """
     Backtrader DataBase feed backed by a thread-safe queue.
+    Czyta dane z queue.Queue.
     Each item in the queue: (datetime, open, high, low, close, volume).
     Pushing None is the stop sentinel — _load() returns False and cerebro exits.
     """
@@ -57,12 +58,13 @@ class _QueueFeed(bt.feed.DataBase):
     def haslivedata(self):
         return not self.p.queue.empty()
 
+    #Backtrader uzywa _load() powtarzalnie aby wczytac kolejny bar
     def _load(self):
         try:
             bar = self.p.queue.get(timeout=self.p.live_timeout)
-        except queue.Empty:
+        except queue.Empty:#kolejna jest pusta (BT czeka i spróbuje ponownie później).
             return None  # no bar yet; cerebro will call _load again shortly
-        if bar is None:
+        if bar is None: 
             return False  # stop sentinel; cerebro will shut down
         dt, o, h, l, c, v = bar
         # backtrader stores datetimes as matplotlib ordinals; strip tzinfo for compat
@@ -81,14 +83,13 @@ class _QueueFeed(bt.feed.DataBase):
 
 def _make_live_strategy(strategy_class, on_fill_cb):
     """
-    Return a subclass of strategy_class that calls on_fill_cb(is_buy, size, price)
-    each time bt's internal broker completes an order.  The original notify_order
-    is still called first so the strategy's own P&L tracking stays intact.
+    Zmienia backtesting strategy na live-trading.
+    Wiąze wewnętrznego brokera Cerebro z rzeczywistym brokerem.
     """
     class _Wrapped(strategy_class):
         def notify_order(self, order):
-            super().notify_order(order)
-            if order.status == order.Completed:
+            super().notify_order(order) #super() - Python daje dostep do metody nadrzednej - wywyłuje notify order z klasy strategii, e.g. MomentumV8, RSIStrategy
+            if order.status == order.Completed: #if order is complete, notify
                 on_fill_cb(order.isbuy(), abs(order.executed.size), order.executed.price)
 
     _Wrapped.__name__ = strategy_class.__name__
@@ -237,7 +238,8 @@ class Mozg:
         cerebro.addsizer(bt.sizers.FixedSize, stake=self.trade_size)
         cerebro.broker.setcash(self.starting_cash)
 
-        # mirror the real broker's starting position inside bt's paper broker
+        # synchronizuje aktualny stan z wewnętrznym brkerem Cerebro
+        # w przypadku crasha, zsychronizuje ponownie z rzeczywistym brokerem przy kolejnym uruchomieniu
         if self.position == LONG:
             cerebro.broker.setposition(feed, size=self.trade_size, price=0.0)
         elif self.position == SHORT:
@@ -245,10 +247,13 @@ class Mozg:
 
         self._init_csv()
 
-        target = self._ccxt_data_worker if self.broker_type == 'ccxt' else self._ibkr_data_worker
-        worker = threading.Thread(target=target, daemon=True, name='data-worker')
+        #wystartuj backgraound thread który pobiera dane z brokera i wrzuca do kolejki
+        #metody zakupu znajdują się w _ibkr_data_worker
+        target = self._ccxt_data_worker if self.broker_type == 'ccxt' else self._ibkr_data_worker #uzywac ccxt czy IBKR
+        worker = threading.Thread(target=target, daemon=True, name='data-worker') #stworz background thread
         worker.start()
 
+        #umozliwia wyłwia zatrzymanie programu Ctrl-C (SIGINT) w terminalu
         if handle_sigint:
             def _sigint(sig, frame):
                 logger.info('Stopping…')
@@ -260,7 +265,8 @@ class Mozg:
             self.symbol, self.timeframe, self.strategy_class.__name__,
             self.broker_type, self.trade_size,
         )
-        cerebro.run()
+        #Runs cerebro, który uzywa next() na kazdym barze
+        cerebro.run() #tutaj skrypt wykonuje się dopóki nie zostanie wywołana self.stop() lub Ctrl-C
         self._stop_event.set()
         worker.join(timeout=5)
         logger.info('Mozg stopped.  Final position: %s', self.position)
@@ -284,6 +290,8 @@ class Mozg:
             self._last_price = float(c)
             self._feed_queue.put((dt, o, h, l, c, v))
 
+
+        #pulling data every poll_interval_s seconds, and pushing to the queue
         self._trader.stream_live_ohlcv(
             self.symbol, self.timeframe,
             callback=on_bar,
@@ -293,10 +301,14 @@ class Mozg:
         )
 
     # IBKR worker: preload historical bars, subscribe to live bars, and drain the
+    #IBKR subscribe, not pull
     # order queue (orders are posted from the main thread via _ibkr_order_queue).
     def _ibkr_data_worker(self):
         from ib_insync import util
-        util.startLoop()
+
+        #IBKR can call the program (after reqHistoricalData(keepUpToDate=True))
+        util.startLoop() #anyncio event loop for IBKR live updates
+        #this enable callback installation
 
         bar_size = _IBKR_BAR_SIZE.get(self.timeframe, '1 min')
 
@@ -313,6 +325,7 @@ class Mozg:
                                       getattr(bar, 'volume', 0.0)))
             logger.info('Preloaded %d IBKR bars.', min(len(hist), self.history_limit))
 
+        #live cointainer for new data. It is a subscription handle.
         live = self._trader.fetch_live_bars(
             self._ibkr_contract, duration='1 D',
             bar_size=bar_size, what_to_show='TRADES',
@@ -328,6 +341,9 @@ class Mozg:
                 self._feed_queue.put((dt, bar.open, bar.high, bar.low, bar.close,
                                       getattr(bar, 'volume', 0.0)))
 
+        #this on_bar_update fires every time IBKR pushes a new update
+        # doorbell.ring += answer_door
+        # znak += attach multiple listeners to the same event.
         live.updateEvent += on_bar_update
 
         # run ib_insync event loop; drain order requests posted from the main thread
@@ -349,20 +365,21 @@ class Mozg:
                 logger.info('IBKR ORDER  %s  size=%.4f', req['side'], req['size'])
             except queue.Empty:
                 pass
-            self._trader.ib.sleep(1)
+            self._trader.ib.sleep(1)#give asyncio event loop time to process incoming messages from IBKR
 
         self._trader.disconnect()
 
     # ── Order intercept ──────────────────────────────────────────────────────────
 
     # Called by the wrapped strategy each time bt's paper broker fills an order.
-    # Classifies the action, routes the real market order, updates position state,
-    # sends a Dash marker, and appends a row to the CSV log.
+    # 1. Klasyfikuje zakupy
+    # 2. Przekazuje do rzeczywistego brokera (chyba że paper_mode=True)
+  
     def _on_bt_fill(self, is_buy: bool, size: float, price: float):
         self._last_price = price
         ep = self._entry_price   # entry price recorded when we opened the position
 
-        if is_buy:
+        if is_buy: #sygnał - LONG
             if self.position == FLAT:
                 action, new_position = 'enter_long', LONG
                 self._entry_price = price
@@ -371,7 +388,7 @@ class Mozg:
                 action       = 'exit_short_tp' if (ep is not None and price < ep) else 'exit_short_sl'
                 new_position = FLAT
                 self._entry_price = None
-        else:
+        else: #sygnał - SHORT
             if self.position == FLAT:
                 action, new_position = 'enter_short', SHORT
                 self._entry_price = price
