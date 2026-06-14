@@ -130,6 +130,8 @@ class Mozg:
         starting_cash: float = 1_000_000.0,
         paper_mode: bool = True,
         order_type: str = 'market',   # 'market' | 'limit'
+        ibkr_exchange: str = 'SMART',
+        ibkr_currency: str = 'USD',
     ):
         self.symbol          = symbol
         self.timeframe       = timeframe
@@ -149,6 +151,8 @@ class Mozg:
         self.starting_cash   = starting_cash
         self.paper_mode      = paper_mode   # True = log signals but never send real orders
         self.order_type      = order_type   # 'market' | 'limit' (limit uses last bar close)
+        self.ibkr_exchange   = ibkr_exchange
+        self.ibkr_currency   = ibkr_currency
 
         # public — readable from outside at any time
         self.position: str = FLAT   # 'flat' | 'long' | 'short'
@@ -185,7 +189,9 @@ class Mozg:
         self._trader = IBKRGateway(client_id=82)
         if not self._trader.connect():
             return False
-        self._ibkr_contract = self._trader.make_stock_contract(self.symbol)
+        self._ibkr_contract = self._trader.make_stock_contract(
+            self.symbol, exchange=self.ibkr_exchange, currency=self.ibkr_currency
+        )
         self.position = self._sync_position_ibkr()
         logger.info('Starting position: %s', self.position)
         return True

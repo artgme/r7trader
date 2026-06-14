@@ -88,7 +88,9 @@ def _uid(symbol: str, strategy_name: str) -> str:
 # Returns the uid on success, None on failure.
 def _start_engine(symbol: str, timeframe: str, strategy_name: str,
                   size: float, broker: str, paper_mode: bool,
-                  order_type: str = 'market') -> str | None:
+                  order_type: str = 'market',
+                  ibkr_exchange: str = 'SMART',
+                  ibkr_currency: str = 'USD') -> str | None:
     uid = _uid(symbol, strategy_name)
 
     with _reg_lock:
@@ -123,6 +125,8 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
         csv_path        = csv_path,
         paper_mode      = paper_mode,
         order_type      = order_type,
+        ibkr_exchange   = ibkr_exchange,
+        ibkr_currency   = ibkr_currency,
     )
 
     if not engine.connect():
@@ -140,15 +144,17 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
             'engine':     engine,
             'thread':     thread,
             'cfg': {
-                'symbol':    symbol,
-                'timeframe': timeframe,
-                'strategy':  strategy_name,
-                'broker':    broker,
-                'paper':     paper_mode,
-                'size':      size,
-                'trail_pct':  trail_pct,
-                'tp_price':   tp_price,
-                'order_type': order_type,
+                'symbol':        symbol,
+                'timeframe':     timeframe,
+                'strategy':      strategy_name,
+                'broker':        broker,
+                'paper':         paper_mode,
+                'size':          size,
+                'trail_pct':     trail_pct,
+                'tp_price':      tp_price,
+                'order_type':    order_type,
+                'ibkr_exchange': ibkr_exchange,
+                'ibkr_currency': ibkr_currency,
             },
             'started_at': datetime.now(timezone.utc).strftime('%H:%M:%S'),
         }
@@ -247,6 +253,14 @@ def _build_app() -> Dash:
                                           value='market',
                                           inline=True,
                                           style={'color': _TEXT, 'marginTop': '6px'})),
+                    _field('IBKR Exchange',
+                           dcc.Input(id='inp-ibkr-exchange', type='text', value='SMART',
+                                     placeholder='SMART',
+                                     style={**input_style, 'width': '90px'})),
+                    _field('IBKR Currency',
+                           dcc.Input(id='inp-ibkr-currency', type='text', value='USD',
+                                     placeholder='USD',
+                                     style={**input_style, 'width': '70px'})),
                     html.Div(
                         html.Button('Add Symbol', id='btn-add', n_clicks=0,
                                     style={'background': _GREEN, 'color': 'white',
@@ -315,18 +329,23 @@ def _build_app() -> Dash:
         State('inp-timeframe','value'),
         State('inp-strategy', 'value'),
         State('inp-size',     'value'),
-        State('inp-broker',      'value'),
-        State('inp-paper',       'value'),
-        State('inp-order-type',  'value'),
+        State('inp-broker',        'value'),
+        State('inp-paper',         'value'),
+        State('inp-order-type',    'value'),
+        State('inp-ibkr-exchange', 'value'),
+        State('inp-ibkr-currency', 'value'),
         prevent_initial_call=True,
     )
-    def on_add(_n, symbol, timeframe, strategy, size, broker, paper, order_type):
+    def on_add(_n, symbol, timeframe, strategy, size, broker, paper, order_type,
+               ibkr_exchange, ibkr_currency):
         if not symbol or not strategy:
             return 'Please fill in all fields.'
         uid = _start_engine(
             symbol.strip(), timeframe, strategy,
             float(size or 1.0), broker, paper == 'yes',
             order_type or 'market',
+            ibkr_exchange or 'SMART',
+            (ibkr_currency or 'USD').upper(),
         )
         if uid:
             return f'✓ Engine started: {uid}'
@@ -364,7 +383,8 @@ def _build_app() -> Dash:
             cstyle = {'padding': '8px 12px', 'fontSize': '13px', 'color': _TEXT}
 
             headers = ['Symbol', 'TF', 'Strategy', 'Broker',
-                       'Paper', 'Size', 'Position', 'T-SL', 'TP', 'Entry', 'Status', 'Started', '']
+                       'Exchange', 'Currency', 'Paper', 'Size', 'Position',
+                       'T-SL', 'TP', 'Entry', 'Status', 'Started', '']
             rows = []
             for uid, entry in entries:
                 cfg    = entry['cfg']
@@ -383,6 +403,8 @@ def _build_app() -> Dash:
                     html.Td(cfg['timeframe'], style=cstyle),
                     html.Td(cfg['strategy'],  style=cstyle),
                     html.Td(cfg['broker'],    style=cstyle),
+                    html.Td(cfg.get('ibkr_exchange', '—') if cfg['broker'] == 'ibkr' else '—', style=cstyle),
+                    html.Td(cfg.get('ibkr_currency', '—') if cfg['broker'] == 'ibkr' else '—', style=cstyle),
                     html.Td('Yes' if cfg['paper'] else '⚠ LIVE',
                             style={**cstyle,
                                    'color': _MUTED if cfg['paper'] else _RED}),
