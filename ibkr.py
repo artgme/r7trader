@@ -11,6 +11,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+class _IBKRWrapperFilter(logging.Filter):
+    """Drop high-frequency account-wide broadcasts from ib_insync.wrapper.
+    mozg.py subscribes to these events and logs only the relevant symbol."""
+    def filter(self, record):
+        msg = record.getMessage()
+        return not msg.startswith(('updatePortfolio:', 'position:'))
+
+logging.getLogger('ib_insync.wrapper').addFilter(_IBKRWrapperFilter())
+
+
 class IBKRGateway:
     def __init__(self, host: str = HOST, port: int = PORT, client_id: int = CLIENT_ID):
         self.host = host
@@ -73,7 +83,7 @@ class IBKRGateway:
             keepUpToDate=False,  # one-shot; no streaming updates
         )
         if not bars:
-            logger.warning('[ibkr.py] Historical data unavailable for %s — IBKR HMDS is inactive (US market likely closed).', symbol)
+            logger.warning('[ibkr.py] No bars returned for %s (duration=%s, bar_size=%s) — possible causes: no trades in window (after-hours), pacing violation, or HMDS inactive.', symbol, duration, bar_size)
         return bars
 
     # Same API as fetch_historical but with keepUpToDate=True: IBKR pushes new bars as they close.
@@ -93,7 +103,7 @@ class IBKRGateway:
             keepUpToDate=True,  # stream new bars as they close
         )
         if not bars:
-            logger.warning('[ibkr.py] Live bar subscription returned no initial data for %s — IBKR HMDS is inactive (US market likely closed). Bars will populate on market open.', symbol)
+            logger.warning('[ibkr.py] Live bar subscription returned no initial data for %s — timed out. Will still receive bars via updateEvent once IBKR starts pushing them.', symbol)
         return bars
 
     # Returns a list of Position objects (contract, position size, avgCost) for all open positions.

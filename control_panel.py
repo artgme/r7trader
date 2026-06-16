@@ -69,6 +69,7 @@ STRATEGIES: dict[str, type] = _discover_strategies()
 
 _registry: dict[str, dict] = {}   # uid → {engine, thread, cfg, started_at}
 _reg_lock  = threading.Lock()
+_next_client_id = 80  # IBKR client IDs assigned sequentially; each live engine needs a unique one
 _activity:  list[str] = []        # last 50 log messages shown in the UI
 
 
@@ -113,6 +114,11 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
     safe_sym = symbol.replace('/', '_').lower()
     csv_path = f'logs/trades_{safe_sym}_{strategy_name.lower()}.csv'
 
+    global _next_client_id
+    with _reg_lock:
+        client_id = _next_client_id
+        _next_client_id += 1
+
     engine = Mozg(
         symbol          = symbol,
         timeframe       = timeframe,
@@ -128,6 +134,7 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
         order_type      = order_type,
         ibkr_exchange   = ibkr_exchange,
         ibkr_currency   = ibkr_currency,
+        ibkr_client_id  = client_id,
     )
 
     try:

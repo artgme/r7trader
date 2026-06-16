@@ -38,6 +38,22 @@ _IBKR_BAR_SIZE: dict = {
     '4h': '4 hours', '1d': '1 day',
 }
 
+# Shortest safe poll window per timeframe: covers ~5 bars so timestamp comparison
+# always has context even if one poll is delayed.
+# IBKR duration units: S (seconds), D (days), W (weeks), M (months), Y (years).
+_IBKR_POLL_DURATION: dict = {
+    '1m':  '3600 S',  # 1 hour  (~60 bars; wider window avoids empty after-hours gaps)
+    '5m':  '1800 S',  # 30 min  (~6 bars)
+    '10m': '3600 S',  # 1 hour  (~6 bars)
+    '15m': '7200 S',  # 2 hours (~8 bars)
+    '30m': '1 D',
+    '45m': '1 D',
+    '1h':  '1 D',
+    '2h':  '1 D',
+    '4h':  '1 D',
+    '1d':  '5 D',
+}
+
 
 # ─── Custom backtrader live feed ──────────────────────────────────────────────
 
@@ -49,8 +65,9 @@ class _QueueFeed(bt.feed.DataBase):
     Pushing None is the stop sentinel — _load() returns False and cerebro exits.
     """
     params = (
-        ('queue', None),     # queue.Queue instance supplied by Mozg
-        ('live_timeout', 5), # seconds to block per _load() call before returning None
+        ('queue', None),        # queue.Queue instance supplied by Mozg
+        ('live_timeout', 5),    # seconds to block per _load() call before returning None
+        ('on_go_live', None),   # callable invoked when 'GO_LIVE' sentinel is consumed
     )
 
     def islive(self):
@@ -65,8 +82,12 @@ class _QueueFeed(bt.feed.DataBase):
             bar = self.p.queue.get(timeout=self.p.live_timeout)
         except queue.Empty:#kolejna jest pusta (BT czeka i spróbuje ponownie później).
             return None  # no bar yet; cerebro will call _load again shortly
-        if bar is None: 
+        if bar is None:
             return False  # stop sentinel; cerebro will shut down
+        if bar == 'GO_LIVE':
+            if self.p.on_go_live:
+                self.p.on_go_live()
+            return None  # no bar to load; cerebro retries
         dt, o, h, l, c, v = bar
         # backtrader stores datetimes as matplotlib ordinals; strip tzinfo for compat
         dt_naive = dt.replace(tzinfo=None) if dt.tzinfo else dt
@@ -133,6 +154,7 @@ class Mozg:
         order_type: str = 'market',   # 'market' | 'limit'
         ibkr_exchange: str = 'SMART',
         ibkr_currency: str = 'USD',
+        ibkr_client_id: int = 80,
     ):
         self.symbol          = symbol
         self.timeframe       = timeframe
@@ -154,6 +176,7 @@ class Mozg:
         self.order_type      = order_type   # 'market' | 'limit' (limit uses last bar close)
         self.ibkr_exchange   = ibkr_exchange
         self.ibkr_currency   = ibkr_currency
+        self.ibkr_client_id  = ibkr_client_id
 
         # public — readable from outside at any time
         self.position: str = FLAT   # 'flat' | 'long' | 'short'
@@ -164,6 +187,8 @@ class Mozg:
         self._ibkr_order_queue:  queue.Queue   = queue.Queue()
         self._trader                            = None   # CexTrader or IBKRGateway
         self._ibkr_contract                     = None
+        self._ibkr_connected:    threading.Event = threading.Event()
+        self._live_trading:      bool            = False  # False during historical replay; True once GO_LIVE sentinel consumed
         self._entry_price: float | None         = None   # used to classify TP vs SL exits
         self._last_price:  float | None         = None
 
@@ -186,20 +211,9 @@ class Mozg:
         return True
 
     def _connect_ibkr(self) -> bool:
-        import asyncio
-        try:
-            asyncio.get_event_loop()
-        except RuntimeError:
-            asyncio.set_event_loop(asyncio.new_event_loop())
-        from ibkr import IBKRGateway
-        self._trader = IBKRGateway(client_id=82)
-        if not self._trader.connect():
-            return False
-        self._ibkr_contract = self._trader.make_stock_contract(
-            self.symbol, exchange=self.ibkr_exchange, currency=self.ibkr_currency
-        )
-        self.position = self._sync_position_ibkr()
-        logger.info('Starting position: %s', self.position)
+        # IBKRGateway (and IB()) is created inside _ibkr_data_worker() after util.startLoop(),
+        # so that ib_insync's async machinery runs on the worker thread's event loop.
+        # Nothing to do here — run() waits on _ibkr_connected for the worker to confirm.
         return True
 
     # ── Position sync ────────────────────────────────────────────────────────────
@@ -229,6 +243,10 @@ class Mozg:
                     return SHORT
         return FLAT
 
+    def _set_live_trading(self):
+        self._live_trading = True
+        logger.info('Historical replay complete — live trading enabled.')
+
     # ── Main entry point ─────────────────────────────────────────────────────────
 
     # Signal this engine to stop from any thread (used for multi-symbol shutdown).
@@ -242,20 +260,13 @@ class Mozg:
     def run(self, handle_sigint: bool = True):
         live_cls = _make_live_strategy(self.strategy_class, self._on_bt_fill)
 
-        feed = _QueueFeed(queue=self._feed_queue)
+        feed = _QueueFeed(queue=self._feed_queue, on_go_live=self._set_live_trading)
 
         cerebro = bt.Cerebro(runonce=False)
         cerebro.adddata(feed)
         cerebro.addstrategy(live_cls, **self.strategy_params)
         cerebro.addsizer(bt.sizers.FixedSize, stake=self.trade_size)
         cerebro.broker.setcash(self.starting_cash)
-
-        # synchronizuje aktualny stan z wewnętrznym brkerem Cerebro
-        # w przypadku crasha, zsychronizuje ponownie z rzeczywistym brokerem przy kolejnym uruchomieniu
-        if self.position == LONG:
-            cerebro.broker.setposition(feed, size=self.trade_size, price=0.0)
-        elif self.position == SHORT:
-            cerebro.broker.setposition(feed, size=-self.trade_size, price=0.0)
 
         self._init_csv()
 
@@ -265,9 +276,20 @@ class Mozg:
         worker = threading.Thread(target=target, daemon=True, name='data-worker') #stworz background thread
         worker.start()
 
+        if self.broker_type == 'ibkr':
+            if not self._ibkr_connected.wait(timeout=30):
+                logger.error('IBKR data worker did not connect within 30 s — aborting.')
+                self.stop()
+                return
+            # position is now synced by the worker; apply it to cerebro
+            if self.position == LONG:
+                cerebro.broker.setposition(feed, size=self.trade_size, price=0.0)
+            elif self.position == SHORT:
+                cerebro.broker.setposition(feed, size=-self.trade_size, price=0.0)
+
         #umozliwia wyłwia zatrzymanie programu Ctrl-C (SIGINT) w terminalu
         if handle_sigint:
-            def _sigint(sig, frame):
+            def _sigint(*_):
                 logger.info('Stopping…')
                 self.stop()
             signal.signal(signal.SIGINT, _sigint)
@@ -295,6 +317,7 @@ class Mozg:
                 dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
                 self._feed_queue.put((dt, o, h, l, c, v))
             logger.info('Preloaded %d historical bars.', len(bars))
+        self._feed_queue.put('GO_LIVE')
 
         def on_bar(bar):
             ts_ms, o, h, l, c, v = bar
@@ -312,15 +335,41 @@ class Mozg:
             poll_interval_s=self.poll_interval_s,
         )
 
-    # IBKR worker: preload historical bars, subscribe to live bars, and drain the
-    #IBKR subscribe, not pull
-    # order queue (orders are posted from the main thread via _ibkr_order_queue).
+    # IBKR worker: preload historical bars, then poll every 60 s for new closed bars.
+    # Polling sidesteps keepUpToDate=True callback delivery issues in Python 3.13
+    # background threads (asyncio event-loop dispatch never fires updateEvent).
     def _ibkr_data_worker(self):
-        from ib_insync import util
+        import asyncio
+        # eventkit (ib_insync dependency) calls get_event_loop() at import time,
+        # so a loop must exist in this thread before the import happens.
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
-        #IBKR can call the program (after reqHistoricalData(keepUpToDate=True))
-        util.startLoop() #anyncio event loop for IBKR live updates
-        #this enable callback installation
+        from ibkr import IBKRGateway
+        self._trader = IBKRGateway(client_id=self.ibkr_client_id)
+        if not self._trader.connect():
+            logger.error('[mozg.py] IBKR data worker: connection failed.')
+            self._ibkr_connected.set()  # unblock run() so it can abort cleanly
+            return
+
+        self._ibkr_contract = self._trader.make_stock_contract(
+            self.symbol, exchange=self.ibkr_exchange, currency=self.ibkr_currency
+        )
+        self.position = self._sync_position_ibkr()
+        logger.info('Starting position: %s', self.position)
+        self._ibkr_connected.set()  # unblock run() — position is ready
+
+        def on_portfolio_update(item):
+            if getattr(item.contract, 'symbol', '') == self.symbol:
+                logger.info('[%s] Portfolio: pos=%.0f price=%.4f unrealPNL=%.2f realPNL=%.2f',
+                            self.symbol, item.position, item.marketPrice,
+                            item.unrealizedPNL, item.realizedPNL)
+
+        def on_position(_, contract, position, avgCost):
+            if getattr(contract, 'symbol', '') == self.symbol:
+                logger.info('[%s] Position: %.0f @ avgCost=%.4f', self.symbol, position, avgCost)
+
+        self._trader.ib.updatePortfolioEvent += on_portfolio_update
+        self._trader.ib.positionEvent += on_position
 
         bar_size = _IBKR_BAR_SIZE.get(self.timeframe, '1 min')
 
@@ -336,48 +385,74 @@ class Mozg:
                 self._feed_queue.put((dt, bar.open, bar.high, bar.low, bar.close,
                                       getattr(bar, 'volume', 0.0)))
             logger.info('Preloaded %d IBKR bars.', min(len(hist), self.history_limit))
+        self._feed_queue.put('GO_LIVE')
 
-        #live cointainer for new data. It is a subscription handle.
-        live = self._trader.fetch_live_bars(
-            self._ibkr_contract, duration='1 D',
-            bar_size=bar_size, what_to_show='TRADES',
-        )
+        def _to_ts(date_val):
+            ts = pd.Timestamp(date_val)
+            return ts.tz_localize('UTC') if ts.tzinfo is None else ts.tz_convert('UTC')
 
-        def on_bar_update(bars, has_new_bar):
-            if has_new_bar:
-                bar = bars[-1]
-                ts = pd.Timestamp(bar.date)
-                ts = ts.tz_localize('UTC') if ts.tzinfo is None else ts.tz_convert('UTC')
-                dt = ts.to_pydatetime()
-                self._last_price = float(bar.close)
-                self._feed_queue.put((dt, bar.open, bar.high, bar.low, bar.close,
-                                      getattr(bar, 'volume', 0.0)))
+        # Anchor: only bars strictly after this timestamp are treated as new closed bars.
+        # If the initial preload failed (empty), anchor to now so we don't replay history.
+        last_bar_ts = _to_ts(hist[-1].date) if hist else pd.Timestamp.now(tz='UTC')
 
-        #this on_bar_update fires every time IBKR pushes a new update
-        # doorbell.ring += answer_door
-        # znak += attach multiple listeners to the same event.
-        live.updateEvent += on_bar_update
+        # Poll every 60 s — safe for IBKR's 60-requests-per-10-min pacing limit with
+        # up to ~20 simultaneous strategies.  Each 1-second ib.sleep() tick also drives
+        # the asyncio loop so that portfolio/position events continue to arrive.
+        POLL_TICKS = 60
+        tick = 0
 
-        # run ib_insync event loop; drain order requests posted from the main thread
-        while not self._stop_event.is_set():
-            try:
-                req = self._ibkr_order_queue.get_nowait()
-                if req.get('is_entry') and self._bracket_trail_pct is not None:
-                    limit_price = self._last_price if self.order_type == 'limit' else None
-                    self._trader.place_bracket_trailing(
-                        self._ibkr_contract,
-                        action=req['side'],
-                        quantity=req['size'],
-                        trail_percent=self._bracket_trail_pct,
-                        limit_price=limit_price,
-                        take_profit_price=self._bracket_take_profit,
-                    )
-                else:
-                    self._trader.place_market_order(self._ibkr_contract, req['side'], req['size'])
-                logger.info('IBKR ORDER  %s  size=%.4f', req['side'], req['size'])
-            except queue.Empty:
-                pass
-            self._trader.ib.sleep(1)#give asyncio event loop time to process incoming messages from IBKR
+        try:
+            while not self._stop_event.is_set():
+                # Drain the order queue (orders posted from the main/cerebro thread)
+                try:
+                    req = self._ibkr_order_queue.get_nowait()
+                    if req.get('is_entry') and self._bracket_trail_pct is not None:
+                        limit_price = self._last_price if self.order_type == 'limit' else None
+                        self._trader.place_bracket_trailing(
+                            self._ibkr_contract,
+                            action=req['side'],
+                            quantity=req['size'],
+                            trail_percent=self._bracket_trail_pct,
+                            limit_price=limit_price,
+                            take_profit_price=self._bracket_take_profit,
+                        )
+                    else:
+                        self._trader.place_market_order(self._ibkr_contract, req['side'], req['size'])
+                    logger.info('IBKR ORDER  %s  size=%.4f', req['side'], req['size'])
+                except queue.Empty:
+                    pass
+
+                self._trader.ib.sleep(1)
+                tick += 1
+                if tick < POLL_TICKS:
+                    continue
+                tick = 0
+
+                # Fetch the latest bars and detect any that closed since last poll
+                poll_duration = _IBKR_POLL_DURATION.get(self.timeframe, '1 D')
+                fresh = self._trader.fetch_historical(
+                    self._ibkr_contract, duration=poll_duration,
+                    bar_size=bar_size, what_to_show='TRADES',
+                )
+                if not fresh:
+                    continue
+
+                self._last_price = float(fresh[-1].close)
+                logger.info('%s : $%.2f', self.symbol, fresh[-1].close)
+
+                for bar in fresh:
+                    bar_ts = _to_ts(bar.date)
+                    if bar_ts > last_bar_ts:
+                        dt = bar_ts.to_pydatetime()
+                        logger.info('%s [CLOSED] : $%.2f', self.symbol, bar.close)
+                        self._feed_queue.put((dt, bar.open, bar.high, bar.low, bar.close,
+                                              getattr(bar, 'volume', 0.0)))
+                        last_bar_ts = bar_ts
+
+        except ConnectionError:
+            logger.error('[%s] IBKR Gateway disconnected — stopping engine.', self.symbol)
+            self._stop_event.set()
+            self._feed_queue.put(None)  # unblock cerebro so it shuts down cleanly
 
         self._trader.disconnect()
 
@@ -410,6 +485,11 @@ class Mozg:
                 new_position = FLAT
                 self._entry_price = None
 
+        self.position = new_position
+
+        if not self._live_trading:
+            return  # historical replay — position tracking only, no real orders
+
         logger.info(
             'SIGNAL  %-22s  price=%.4f  size=%.4f  position: %s → %s',
             action, price, size, self.position, new_position,
@@ -427,7 +507,6 @@ class Mozg:
                 'is_entry': action in ('enter_long', 'enter_short'),
             })
 
-        self.position = new_position
         self._send_dash_marker(action, price)
         self._log_trade(action, price, size)
 
