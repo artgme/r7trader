@@ -33,8 +33,9 @@ SHORT = 'short'
 
 # ccxt timeframe string → IBKR bar-size string
 _IBKR_BAR_SIZE: dict = {
-    '1m': '1 min', '5m': '5 mins', '15m': '15 mins',
-    '30m': '30 mins', '1h': '1 hour', '4h': '4 hours', '1d': '1 day',
+    '1m': '1 min', '5m': '5 mins', '10m': '10 mins', '15m': '15 mins',
+    '30m': '30 mins', '45m': '45 mins', '1h': '1 hour', '2h': '2 hours',
+    '4h': '4 hours', '1d': '1 day',
 }
 
 
@@ -185,6 +186,11 @@ class Mozg:
         return True
 
     def _connect_ibkr(self) -> bool:
+        import asyncio
+        try:
+            asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
         from ibkr import IBKRGateway
         self._trader = IBKRGateway(client_id=82)
         if not self._trader.connect():

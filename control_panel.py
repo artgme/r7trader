@@ -27,6 +27,7 @@ from configs import get_params, get_symbols, get_timeframes
 from mozg import Mozg
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 PORT     = 8053
@@ -129,7 +130,12 @@ def _start_engine(symbol: str, timeframe: str, strategy_name: str,
         ibkr_currency   = ibkr_currency,
     )
 
-    if not engine.connect():
+    try:
+        connected = engine.connect()
+    except Exception as exc:
+        _log(f'Connection error for {symbol}: {exc}')
+        return None
+    if not connected:
         _log(f'Connection failed for {symbol}.')
         return None
 
@@ -349,6 +355,8 @@ def _build_app() -> Dash:
         )
         if uid:
             return f'✓ Engine started: {uid}'
+        if broker == 'ibkr':
+            return '✗ Could not connect to IBKR Gateway — is TWS / IB Gateway running?'
         return '✗ Failed to start engine — check terminal for details.'
 
     # ── Engine table + activity log (interval + stop buttons) ─────────────────

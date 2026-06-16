@@ -60,7 +60,8 @@ class IBKRGateway:
     # what_to_show: 'TRADES' for stocks, 'MIDPOINT' or 'BID_ASK' for Forex/crypto.
     # use_rth=False includes pre/post-market and overnight sessions.
     def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5 mins', what_to_show: str = 'TRADES', use_rth: bool = False):
-        logger.info('Requesting historical data: %s, duration=%s, bar_size=%s, what_to_show=%s', contract.symbol if hasattr(contract, 'symbol') else contract.secType, duration, bar_size, what_to_show)
+        symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
+        logger.info('Requesting historical data: %s, duration=%s, bar_size=%s, what_to_show=%s', symbol, duration, bar_size, what_to_show)
         bars = self.ib.reqHistoricalData(
             contract,
             endDateTime='',  # '' means "up to now"
@@ -71,13 +72,16 @@ class IBKRGateway:
             formatDate=1,
             keepUpToDate=False,  # one-shot; no streaming updates
         )
+        if not bars:
+            logger.warning('[ibkr.py] Historical data unavailable for %s — IBKR HMDS is inactive (US market likely closed).', symbol)
         return bars
 
     # Same API as fetch_historical but with keepUpToDate=True: IBKR pushes new bars as they close.
     # Attach an event handler via bars.updateEvent += handler to receive live updates.
     # Call ib.cancelHistoricalData(bars) when the subscription is no longer needed.
     def fetch_live_bars(self, contract: Contract, duration: str = '1 D', bar_size: str = '1 min', what_to_show: str = 'TRADES', use_rth: bool = False):
-        logger.info('Subscribing to live bars: %s, bar_size=%s', contract.symbol if hasattr(contract, 'symbol') else contract.secType, bar_size)
+        symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
+        logger.info('Subscribing to live bars: %s, bar_size=%s', symbol, bar_size)
         bars = self.ib.reqHistoricalData(
             contract,
             endDateTime='',
@@ -88,6 +92,8 @@ class IBKRGateway:
             formatDate=1,
             keepUpToDate=True,  # stream new bars as they close
         )
+        if not bars:
+            logger.warning('[ibkr.py] Live bar subscription returned no initial data for %s — IBKR HMDS is inactive (US market likely closed). Bars will populate on market open.', symbol)
         return bars
 
     # Returns a list of Position objects (contract, position size, avgCost) for all open positions.

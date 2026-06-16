@@ -65,6 +65,12 @@ PARAMS: dict = {
                     'trail_stop_pct': 0.15, 'stop_loss_pct': 0.30,
                     'allow_short': False},
         },
+        'RKLB': {
+            '10m': {'vol_len': 5, 'vol_multiplier': 1.5, 'price_move_pct': 0.6,
+                    'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50},
+            '30m': {'vol_len': 5, 'vol_multiplier': 1.5, 'price_move_pct': 0.6,
+                    'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50},
+        },
 
         # ── Forex (IBKR) ───────────────────────────────────────────────────
         'EURUSD': {
@@ -205,7 +211,7 @@ PARAMS: dict = {
 }
 
 
-_TF_ORDER = ['1m', '5m', '15m', '30m', '1h', '4h', '1d']
+_TF_ORDER = ['1m', '5m', '10m', '15m', '30m', '45m', '1h', '2h', '4h', '1d']
 
 
 def get_symbols(strategy_name: str) -> list[str]:
