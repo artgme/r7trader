@@ -5,3 +5,4 @@ pandas>=2.2
 ccxt>=4.3
 python-dotenv>=1.0
 backtrader>=1.9.78
+mplfinance>=0.12
