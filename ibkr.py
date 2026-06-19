@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, LimitOrder, Order, Contract
 
@@ -48,6 +49,25 @@ class IBKRGateway:
     # Thin wrapper so callers don't need to import ib_insync directly just to check status.
     def is_connected(self) -> bool:
         return self.ib.isConnected()
+
+    # Ensures the gateway is connected, retrying up to `retries` times with exponential backoff.
+    # Returns True if connected, False if all attempts failed.
+    def ensure_connected(self, retries: int = 3, delay: float = 2.0) -> bool:
+        if self.ib.isConnected():
+            return True
+        for attempt in range(1, retries + 1):
+            logger.info('Reconnect attempt %d/%d', attempt, retries)
+            try:
+                self.ib.connect(self.host, self.port, clientId=self.client_id)
+                if self.ib.isConnected():
+                    logger.info('Reconnected on attempt %d', attempt)
+                    return True
+            except Exception as e:
+                logger.warning('Attempt %d failed: %s', attempt, e)
+            if attempt < retries:
+                time.sleep(delay * attempt)
+        logger.error('Failed to reconnect after %d attempts', retries)
+        return False
 
     # Returns an equity Contract. SMART routing lets IBKR choose the best execution venue automatically.
     def make_stock_contract(self, symbol: str, exchange: str = 'SMART', currency: str = 'USD') -> Contract:
