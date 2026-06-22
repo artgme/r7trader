@@ -31,12 +31,6 @@ FLAT  = 'flat'
 LONG  = 'long'
 SHORT = 'short'
 
-# ccxt timeframe string → IBKR bar-size string
-_IBKR_BAR_SIZE: dict = {
-    '1m': '1 min', '5m': '5 mins', '10m': '10 mins', '15m': '15 mins',
-    '30m': '30 mins', '45m': '45 mins', '1h': '1 hour', '2h': '2 hours',
-    '4h': '4 hours', '1d': '1 day',
-}
 
 # Shortest safe poll window per timeframe: covers ~5 bars so timestamp comparison
 # always has context even if one poll is delayed.
@@ -371,11 +365,9 @@ class Mozg:
         self._trader.ib.updatePortfolioEvent += on_portfolio_update
         self._trader.ib.positionEvent += on_position
 
-        bar_size = _IBKR_BAR_SIZE.get(self.timeframe, '1 min')
-
         hist = self._trader.fetch_historical(
             self._ibkr_contract, duration='2 D',
-            bar_size=bar_size, what_to_show='TRADES',
+            bar_size=self.timeframe, what_to_show='TRADES',
         )
         if hist:
             for bar in hist[-self.history_limit:]:
@@ -432,7 +424,7 @@ class Mozg:
                 poll_duration = _IBKR_POLL_DURATION.get(self.timeframe, '1 D')
                 fresh = self._trader.fetch_historical(
                     self._ibkr_contract, duration=poll_duration,
-                    bar_size=bar_size, what_to_show='TRADES',
+                    bar_size=self.timeframe, what_to_show='TRADES',
                 )
                 if not fresh:
                     continue

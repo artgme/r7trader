@@ -11,6 +11,13 @@ CLIENT_ID = 78
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
+# Short timeframe key → IBKR barSizeSetting string.
+_BAR_SIZE = {
+    '1m': '1 min', '5m': '5 mins', '10m': '10 mins', '15m': '15 mins',
+    '30m': '30 mins', '45m': '45 mins', '1h': '1 hour', '2h': '2 hours',
+    '4h': '4 hours', '1d': '1 day',
+}
+
 
 class _IBKRWrapperFilter(logging.Filter):
     """Drop high-frequency account-wide broadcasts from ib_insync.wrapper.
@@ -86,11 +93,12 @@ class IBKRGateway:
 
     # Fetches a one-shot historical bar snapshot up to the current moment (keepUpToDate=False).
     # duration follows IBKR format: '1 D', '3 M', '1 Y', etc.
-    # bar_size follows IBKR format: '1 min', '5 mins', '1 hour', '1 day', etc.
+    # bar_size accepts short format ('5m', '1h', '1d') or raw IBKR format ('5 mins', '1 hour', '1 day').
     # what_to_show: 'TRADES' for stocks, 'MIDPOINT' or 'BID_ASK' for Forex/crypto.
     # use_rth=False includes pre/post-market and overnight sessions.
-    def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5 mins', what_to_show: str = 'TRADES', use_rth: bool = False):
+    def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5m', what_to_show: str = 'TRADES', use_rth: bool = False):
         symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
+        bar_size = _BAR_SIZE.get(bar_size, bar_size)
         logger.info('Requesting historical data: %s, duration=%s, bar_size=%s, what_to_show=%s', symbol, duration, bar_size, what_to_show)
         bars = self.ib.reqHistoricalData(
             contract,
@@ -109,8 +117,9 @@ class IBKRGateway:
     # Same API as fetch_historical but with keepUpToDate=True: IBKR pushes new bars as they close.
     # Attach an event handler via bars.updateEvent += handler to receive live updates.
     # Call ib.cancelHistoricalData(bars) when the subscription is no longer needed.
-    def fetch_live_bars(self, contract: Contract, duration: str = '1 D', bar_size: str = '1 min', what_to_show: str = 'TRADES', use_rth: bool = False):
+    def fetch_live_bars(self, contract: Contract, duration: str = '1 D', bar_size: str = '1m', what_to_show: str = 'TRADES', use_rth: bool = False):
         symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
+        bar_size = _BAR_SIZE.get(bar_size, bar_size)
         logger.info('Subscribing to live bars: %s, bar_size=%s', symbol, bar_size)
         bars = self.ib.reqHistoricalData(
             contract,
