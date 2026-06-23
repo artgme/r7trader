@@ -2,7 +2,7 @@ import logging
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - [%(filename)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
 logging.getLogger('ib_insync').setLevel(logging.WARNING)
@@ -18,6 +18,14 @@ import time
 
 CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOL = 'RKLB'
+
+RED    = '\033[31m'
+GREEN  = '\033[32m'
+YELLOW = '\033[33m'
+BLUE   = '\033[34m'
+CYAN   = '\033[36m'
+WHITE  = '\033[37m'
+RESET  = '\033[0m'
 
 def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False):
     contract = gw.make_stock_contract(symbol)
@@ -54,6 +62,13 @@ def main():
     if not gw.ensure_connected():
         logger.error('Could not connect to IBKR. Is the Gateway/TWS running?')
         return
+    def _on_ibkr_error(reqId, code, msg, _):
+        # codes >= 2000 are connection/system info; 202 = order cancelled confirmation
+        if code >= 2000 or code == 202:
+            logger.debug(f'IBKR info {code} (reqId={reqId}): {msg}')
+        else:
+            logger.error(f'{RED}IBKR error {code} (reqId={reqId}): {msg}{RESET}')
+    gw.ib.errorEvent += _on_ibkr_error
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
@@ -76,12 +91,17 @@ def main():
 
         #3. Wyświetl dane na wykresie
         fig, axes = plot_candles_and_mean(df, mean_price, mean_volume)
+        plt.pause(0.5)  # let the window render before entering the loop
 
         # Keep running, periodically verifying the connection is alive.
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
+        last_processed_candle = None
         while True:
-            plt.pause(CHECK_INTERVAL)
+            # Interleave ib.sleep (asyncio) and plt.pause (GUI) so both stay responsive.
+            for _ in range(CHECK_INTERVAL):
+                gw.ib.sleep(0.9)
+                plt.pause(0.1)
             if not gw.ensure_connected():
                 logger.error('Lost connection and could not reconnect. Exiting.')
                 break
@@ -93,6 +113,7 @@ def main():
                 df = fetch_data_from_IBKR(gw, SYMBOL, '7200 S', '5m', use_rth=True) #20 x 5 min = 100 min <= 7200 s
                 df = df.tail(20)
                 last_candle = df.iloc[-2]
+                candle_time = last_candle.name  # DatetimeIndex — unique per candle
                 price = last_candle['Close']
                 volume = last_candle['Volume']
                 #5. Update indicators
@@ -104,22 +125,33 @@ def main():
                 volume_threshold = mean_volume * vol_multiplier
                 price_threshold = mean_price * price_move_pct
                 #logger.debug(f'Volume threshold: {volume_threshold:.2f}')
-                #Limit order testing:
-                contract = gw.make_stock_contract(SYMBOL)
-                entry, tp, trail = gw.place_bracket_trailing(
-                    contract,
-                    action='SELL',#BUY or SELL
-                    quantity=1,
-                    limit_price=price,       # None = market entry
-                    trail_percent=0.5,       # or trail_amount=1.0 for fixed $
-                )
+                if candle_time == last_processed_candle:
+                    logger.debug(f'Candle {candle_time} already processed, skipping.')
+                else:
+                    #Limit order testing:
+                    contract = gw.make_stock_contract(SYMBOL)
+                    # entry, tp, trail = gw.place_bracket_trailing( #market order with trailing stop loss
+                    #     contract,
+                    #     action='SELL',#BUY or SELL
+                    #     quantity=1,
+                    #     limit_price=round(price * 0.995, 2),  # SELL limit: slightly below market → fills immediately, for BUY - slightly above market 1.005
+                    #     trail_percent=0.5,       # or trail_amount=1.0 for fixed $
+                    # )
+                    entry, tp, trail = gw.place_bracket_trailing( #market order with trailing stop loss
+                        contract,
+                        action='BUY',#BUY or SELL
+                        quantity=1,
+                        limit_price=round(price * 1.005, 2),  # BUY limit: slightly above market → fills immediately, for SELL - slightly below market 0.995
+                        trail_percent=0.5,       # or trail_amount=1.0 for fixed $
+                    )
+                    last_processed_candle = candle_time
                 #printing positions
                 positions = gw.get_positions()
                 if positions:
                     for p in positions:
-                        logger.debug(f'Position: {p}')
+                        logger.debug(f'{BLUE}Position: {p}{RESET}')
                 else:
-                    logger.debug('No open positions.')
+                    logger.debug(f'{YELLOW}No open positions.{RESET}')
                 last_fetch = now
                 #logger.debug(f'Next fetch in 300s at {time.strftime("%H:%M:%S", time.localtime(last_fetch + 300))}')
 

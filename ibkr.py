@@ -3,6 +3,14 @@ import time
 import uuid
 from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, LimitOrder, Order, Contract
 
+RED    = '\033[31m'
+GREEN  = '\033[32m'
+YELLOW = '\033[33m'
+BLUE   = '\033[34m'
+CYAN   = '\033[36m'
+WHITE  = '\033[37m'
+RESET  = '\033[0m'
+
 # Basic default settings for IBKR Gateway / TWS
 HOST = '127.0.0.1'
 PORT = 4003
@@ -140,12 +148,12 @@ class IBKRGateway:
     def get_positions(self) -> list:
         return self.ib.positions()
 
-    # Places a market or limit entry with a trailing stop and an optional take-profit limit.
+    # Places an entry order, waits for it to fill, then attaches a trailing stop.
+    # Avoids bracket/transmit=False orders, which IBKR paper trading silently discards.
     # limit_price=None uses a MarketOrder; a numeric value uses a LimitOrder.
-    # When both TP and trail are present they are linked via an OCA group so the first
-    # exit to trigger cancels the other.
-    # trail_percent: trail by %, e.g. 2.0 means 2%.  Pass trail_amount instead for a fixed $ trail.
-    # Returns (entry_trade, take_profit_trade_or_None, trailing_stop_trade).
+    # When take_profit_price is set, TP and trail are linked via OCA so the first exit cancels the other.
+    # fill_timeout: seconds to wait for the entry to fill before giving up.
+    # Returns (entry_trade, take_profit_trade_or_None, trailing_stop_trade_or_None).
     def place_bracket_trailing(
         self,
         contract: Contract,
@@ -155,37 +163,76 @@ class IBKRGateway:
         trail_amount: float = None,
         limit_price: float = None,
         take_profit_price: float = None,
+        fill_timeout: float = 30.0,
     ):
         if trail_percent is None and trail_amount is None:
-            raise ValueError('Provide either trail_percent or trail_amount')
+            raise ValueError(f'{RED}Provide either trail_percent or trail_amount{RESET}')
         if trail_percent is not None and trail_amount is not None:
-            raise ValueError('Provide only one of trail_percent or trail_amount')
+            raise ValueError(f'{RED}Provide only one of trail_percent or trail_amount{RESET}')
 
         action = action.upper()
         exit_action = 'SELL' if action == 'BUY' else 'BUY'
+        symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
 
+        # Step 0: sync open orders from TWS (catches stale orders from previous sessions).
+        # Cancel only stale entry orders (LMT/MKT in the entry direction) — never touch
+        # protective exit orders (TRAIL/STP) which may be guarding an existing position.
+        self.ib.reqAllOpenOrders()
+        self.ib.sleep(1)
+        stale = [
+            t for t in self.ib.openTrades()
+            if getattr(t.contract, 'symbol', None) == symbol
+            and t.order.action == action
+            and t.order.orderType in ('LMT', 'MKT')
+            and t.orderStatus.status not in ('Filled', 'Cancelled', 'Inactive')
+        ]
+        for t in stale:
+            self.ib.cancelOrder(t.order)
+            logger.warning(f'{YELLOW}Cancelled stale {symbol} {t.order.orderType} order {t.order.orderId}{RESET}')
+        if stale:
+            self.ib.sleep(1)
+
+        # Step 1: place entry (transmit=True — no bracket, no transmit=False)
         if limit_price is not None:
-            entry = LimitOrder(action, quantity, limit_price, transmit=False)
+            entry = LimitOrder(action, quantity, limit_price)
         else:
-            entry = MarketOrder(action, quantity, transmit=False)
+            entry = MarketOrder(action, quantity)
         placed_entry = self.ib.placeOrder(contract, entry)
-        parent_id = placed_entry.order.orderId
+        logger.info(
+            f'{GREEN}Entry placed: %s %s %s @ %s{RESET}',
+            action, quantity, symbol,
+            f'{limit_price:.4f}' if limit_price is not None else 'MARKET',
+        )
 
+        # Step 2: wait for fill
+        deadline = time.time() + fill_timeout
+        while placed_entry.orderStatus.status not in {'Filled', 'Cancelled', 'Inactive'} \
+                and time.time() < deadline:
+            self.ib.sleep(0.5)
+
+        status = placed_entry.orderStatus.status
+        logger.info(f'{GREEN}Entry status: %s{RESET}', status)
+        if status != 'Filled':
+            logger.warning(f'{YELLOW}Entry not filled after {fill_timeout}s (status={status}) — skipping trail{RESET}')
+            return placed_entry, None, None
+
+        filled_qty = placed_entry.orderStatus.filled
+
+        # Step 3: place trail (and optional TP) as standalone orders
         placed_tp = None
+        oca_group = None
         if take_profit_price is not None:
             oca_group = f'OCA-{uuid.uuid4().hex[:8]}'
-            tp = LimitOrder(exit_action, quantity, take_profit_price, transmit=False)
-            tp.parentId = parent_id
+            tp = LimitOrder(exit_action, filled_qty, take_profit_price)
             tp.ocaGroup = oca_group
             tp.ocaType = 1
-        else:
-            oca_group = None
+            placed_tp = self.ib.placeOrder(contract, tp)
+            logger.info(f'{GREEN}TP placed: %s @ %.4f{RESET}', exit_action, take_profit_price)
 
         trail = Order()
         trail.action = exit_action
         trail.orderType = 'TRAIL'
-        trail.totalQuantity = quantity
-        trail.parentId = parent_id
+        trail.totalQuantity = filled_qty
         trail.transmit = True
         if oca_group:
             trail.ocaGroup = oca_group
@@ -194,24 +241,15 @@ class IBKRGateway:
             trail.trailingPercent = trail_percent
         else:
             trail.auxPrice = trail_amount
-
-        logger.info(
-            'Placing bracket: %s %s %s @ %s | TP=%s | trail=%s',
-            action, quantity, contract.symbol if hasattr(contract, 'symbol') else contract.secType,
-            f'{limit_price:.4f}' if limit_price is not None else 'MARKET',
-            f'{take_profit_price:.4f}' if take_profit_price is not None else 'none',
-            f'{trail_percent}%' if trail_percent is not None else f'${trail_amount}',
-        )
-
-        if take_profit_price is not None:
-            placed_tp = self.ib.placeOrder(contract, tp)
         placed_trail = self.ib.placeOrder(contract, trail)
-        self.ib.sleep(1)
 
-        logger.info('Entry status: %s', placed_entry.orderStatus.status)
-        if placed_tp:
-            logger.info('TP status: %s', placed_tp.orderStatus.status)
-        logger.info('Trail status: %s', placed_trail.orderStatus.status)
+        self.ib.sleep(1)
+        logger.info(
+            f'{GREEN}Trail placed: %s | trail=%s | status=%s{RESET}',
+            exit_action,
+            f'{trail_percent}%' if trail_percent is not None else f'${trail_amount}',
+            placed_trail.orderStatus.status,
+        )
 
         return placed_entry, placed_tp, placed_trail
 
