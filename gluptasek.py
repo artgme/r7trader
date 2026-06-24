@@ -9,15 +9,19 @@ logging.getLogger('ib_insync').setLevel(logging.WARNING)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
+from pathlib import Path
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 from ibkr import IBKRGateway
 import configs as cfg
 import time
+from logging_functions import init_trade_log, make_fill_handler
 
 CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOL = 'RKLB'
+TRADE_LOG = Path('logs/trades_rklb_gluptasek.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -60,7 +64,7 @@ def main():
     logging.info("Connecting to IBKR...")
 
     if not gw.ensure_connected():
-        logger.error('Could not connect to IBKR. Is the Gateway/TWS running?')
+        logger.error(f'{RED}Could not connect to IBKR. Is the Gateway/TWS running?{RESET}')
         return
     def _on_ibkr_error(reqId, code, msg, _):
         # codes >= 2000 are connection/system info; 202 = order cancelled confirmation
@@ -69,6 +73,18 @@ def main():
         else:
             logger.error(f'{RED}IBKR error {code} (reqId={reqId}): {msg}{RESET}')
     gw.ib.errorEvent += _on_ibkr_error
+    #logging data
+    init_trade_log(TRADE_LOG)
+    gw.ib.fillEvent += make_fill_handler(TRADE_LOG, SYMBOL)
+
+    #subsribtion mechanism for logging IBKR events
+    def _on_fill(trade, fill):
+        logger.info(
+            f'FILL: {fill.execution.side} {fill.execution.shares} {trade.contract.symbol} '
+            f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
+        )
+
+    gw.ib.fillEvent += _on_fill
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
