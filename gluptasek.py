@@ -75,16 +75,15 @@ def main():
     gw.ib.errorEvent += _on_ibkr_error
     #logging data
     init_trade_log(TRADE_LOG)
-    gw.ib.fillEvent += make_fill_handler(TRADE_LOG, SYMBOL)
+    gw.ib.execDetailsEvent += make_fill_handler(TRADE_LOG, SYMBOL)
 
-    #subsribtion mechanism for logging IBKR events
-    def _on_fill(trade, fill):
+    def _on_fill(trade, fill, _):
         logger.info(
             f'FILL: {fill.execution.side} {fill.execution.shares} {trade.contract.symbol} '
             f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
         )
 
-    gw.ib.fillEvent += _on_fill
+    gw.ib.execDetailsEvent += _on_fill
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
@@ -142,7 +141,7 @@ def main():
                 price_threshold = mean_price * price_move_pct
                 #logger.debug(f'Volume threshold: {volume_threshold:.2f}')
                 if candle_time == last_processed_candle:
-                    logger.debug(f'Candle {candle_time} already processed, skipping.')
+                    logger.debug(f'{YELLOW}Candle {candle_time} already processed, skipping.{RESET}')
                 else:
                     #Limit order testing:
                     contract = gw.make_stock_contract(SYMBOL)
