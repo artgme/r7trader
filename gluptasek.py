@@ -15,14 +15,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 from ibkr import IBKRGateway
-import configs as cfg
+import configs_rocketJanek as cfg
 import time
 from logging_functions import init_trade_log, make_fill_handler
 
+CLIENT_ID=79
+
 CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOL = 'RKLB'
-TIMEFRAME = '10m'
-TRADE_LOG = Path('logs/trades_rklb_gluptasek_24Jun1.csv')
+SYMBOL = 'ASM' #ASM, BESI - EUR
+TIMEFRAME = '5m'
+
+
+TRADE_LOG = Path('logs/trades_rklb_gluptasek_25Jun1.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -32,8 +36,18 @@ CYAN   = '\033[36m'
 WHITE  = '\033[37m'
 RESET  = '\033[0m'
 
-def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False):
-    contract = gw.make_stock_contract(symbol)
+def round_to_tick(price: float, tick: float) -> float:
+    return round(round(price / tick) * tick, 10)
+
+def timeframe_to_seconds(tf: str) -> int:
+    if tf.endswith('m'):
+        return int(tf[:-1]) * 60
+    if tf.endswith('h'):
+        return int(tf[:-1]) * 3600
+    raise ValueError(f'Unsupported timeframe: {tf}')
+
+def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False, currency: str = 'USD'):
+    contract = gw.make_stock_contract(symbol, currency=currency)
     bars = gw.fetch_historical(contract, duration=duration, bar_size=bar_size, use_rth=use_rth)
     if not bars:
         logger.error('No data returned.')
@@ -61,7 +75,7 @@ def plot_candles_and_mean(df: pd.DataFrame, mean_price: float, mean_volume: floa
 
 
 def main():
-    gw = IBKRGateway()
+    gw = IBKRGateway(client_id=CLIENT_ID)
     logging.info("Connecting to IBKR...")
 
     if not gw.ensure_connected():
@@ -78,7 +92,7 @@ def main():
     init_trade_log(TRADE_LOG)
     gw.ib.execDetailsEvent += make_fill_handler(TRADE_LOG, SYMBOL)
 
-    def _on_fill(trade, fill, _):
+    def _on_fill(trade, fill):
         logger.info(
             f'FILL: {fill.execution.side} {fill.execution.shares} {trade.contract.symbol} '
             f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
@@ -89,23 +103,33 @@ def main():
     try:
         #1. Pobiera paramtry strategii z configs.py:
         params     = cfg.get_params('MomentumV8Strategy', SYMBOL, TIMEFRAME)
-        logger.debug(f'Parameters for RKLB: {params}')
+        pd.set_option('display.max_rows', None)
+        logger.debug(f'Parameters for {SYMBOL}: {params}')
+
+        currency_par = params.get('currency', 'USD')
         vol_len = params.get('vol_len', 10)
+
         vol_multiplier = params.get('vol_multiplier', 1.5)
         price_move_pct = params.get('price_move_pct', 1.0)
         trail_stop_pct = params.get('trail_stop_pct', 0.2)
+        tick_size = params.get('tick_size', 0.01)
+
+        #2. Calculating timings for fetching data:
+        tf_seconds = timeframe_to_seconds(TIMEFRAME)
+        fetch_interval = tf_seconds                        # fetch once per bar
+        duration = f'{vol_len * tf_seconds} S'             # enough bars to fill vol_len
 
         #2. Pobierz dane historyczne z IBKR
-        df = fetch_data_from_IBKR(gw, SYMBOL, '1 D', TIMEFRAME, use_rth=True)
+        df = fetch_data_from_IBKR(gw, SYMBOL, '1 D', TIMEFRAME, use_rth=True, currency=currency_par)
         if df is None:
             logger.error('No initial data — market may be closed or pacing violation. Exiting.')
             return
 
         #2. Inicjalizacja - oblicz indicators
         mean_price = df['Close'].mean()
-        logger.debug(f'Mean closing price for RKLB: {mean_price:.2f}')
+        logger.debug(f'Mean closing price for {SYMBOL}: {mean_price:.2f}')
         mean_volume = df['Volume'].mean()
-        logger.debug(f'Mean volume for RKLB: {mean_volume:.2f}')
+        logger.debug(f'Mean volume for {SYMBOL}: {mean_volume:.2f}')
 
         #3. Wyświetl dane na wykresie
         fig, axes = plot_candles_and_mean(df, mean_price, mean_volume)
@@ -115,7 +139,7 @@ def main():
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
         last_processed_candle = None
-        contract = gw.make_stock_contract(SYMBOL)
+        contract = gw.make_stock_contract(SYMBOL, currency=currency_par)
         while True:
             # Interleave ib.sleep (asyncio) and plt.pause (GUI) so both stay responsive.
             for _ in range(CHECK_INTERVAL):
@@ -128,10 +152,10 @@ def main():
             now = time.time()
             #logger.debug(f'tick: now={now:.0f}, last_fetch={last_fetch:.0f}, diff={now - last_fetch:.0f}s')
             #Zbuduj równanie
-            if now - last_fetch >= 600: #5minut * 60 = 300s; 10min *60 =600s
+            if now - last_fetch >= fetch_interval: #5minut * 60 = 300s; 10min *60 =600s
                 #4. Download life data
                 # W zaleności od ilości świeczek do analizy, pobieramy dane historyczne z IBKR. W tym przypadku pobieramy 20 świeczek po 5 minut każda, co daje nam 100 minut danych (7200 sekund).
-                df = fetch_data_from_IBKR(gw, SYMBOL, '7200 S', TIMEFRAME, use_rth=True) #12 x 10 min = 120 min <= 7200 s
+                df = fetch_data_from_IBKR(gw, SYMBOL, duration, TIMEFRAME, use_rth=True, currency=currency_par) #12 x 10 min = 120 min <= 7200 s
                 df = df.tail(vol_len)
                 last_candle = df.iloc[-2]
                 candle_time = last_candle.name  # DatetimeIndex — unique per candle
@@ -139,16 +163,19 @@ def main():
                 if candle_time == last_processed_candle:
                     logger.debug(f'{YELLOW}Candle {candle_time} already processed, skipping.{RESET}')
                 else:
-                    price = last_candle['Close']
+                    price = last_candle['Close'] #use in stop loss and take profit orders
                     volume = last_candle['Volume']
                     #5. Update indicators
                     df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open']
+                    #print(df['candle_pct'])
                     current_pct = df['candle_pct'].iloc[-2]
                     mean_abs_change = df['candle_pct'].abs().mean()
+                    #print(f'Mean absolute change: {mean_abs_change:.2f}%')
                     mean_volume = df['Volume'].mean()
                     #7. Check for signals and execute orders
                     volume_threshold = mean_volume * vol_multiplier
                     price_threshold = mean_abs_change * price_move_pct
+                    print(f'volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, mean_abs_change: {mean_abs_change:.2f}')
 
                     if volume > volume_threshold and current_pct > price_threshold:
                         logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
@@ -168,7 +195,7 @@ def main():
                             contract,
                             action='SELL',
                             quantity=1,
-                            limit_price=round(price * 0.995, 2),
+                            limit_price=round_to_tick(price * 0.995, tick_size),
                             trail_percent=trail_stop_pct,
                         )
                     elif SIGNAL == 'BUY':
@@ -176,7 +203,7 @@ def main():
                             contract,
                             action='BUY',
                             quantity=1,
-                            limit_price=round(price * 1.005, 2),
+                            limit_price=round_to_tick(price * 1.005, tick_size),
                             trail_percent=trail_stop_pct,
                         )
                     

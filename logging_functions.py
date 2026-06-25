@@ -27,7 +27,7 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
 
 
 def make_fill_handler(log_path: Path, default_symbol: str):
-    def _on_fill(trade, fill, _):
+    def _on_fill(trade, fill):
         symbol     = getattr(trade.contract, 'symbol', default_symbol)
         order_type = trade.order.orderType
         side       = fill.execution.side    # 'BOT' or 'SLD'
