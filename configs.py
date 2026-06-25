@@ -66,7 +66,7 @@ PARAMS: dict = {
                     'allow_short': False},
         },
         'RKLB': {
-            '10m': {'vol_len': 5, 'vol_multiplier': 1.5, 'price_move_pct': 0.6,
+            '10m': {'vol_len': 7, 'vol_multiplier': 1.5, 'price_move_pct': 1.5,
                     'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50},
             '30m': {'vol_len': 5, 'vol_multiplier': 1.5, 'price_move_pct': 0.6,
                     'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50},

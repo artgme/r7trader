@@ -21,7 +21,8 @@ from logging_functions import init_trade_log, make_fill_handler
 
 CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOL = 'RKLB'
-TRADE_LOG = Path('logs/trades_rklb_gluptasek.csv')
+TIMEFRAME = '10m'
+TRADE_LOG = Path('logs/trades_rklb_gluptasek_24Jun1.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -87,13 +88,15 @@ def main():
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
-        params     = cfg.get_params('MomentumV8Strategy', SYMBOL, '10m')
+        params     = cfg.get_params('MomentumV8Strategy', SYMBOL, TIMEFRAME)
         logger.debug(f'Parameters for RKLB: {params}')
-        vol_multiplier = params.get('vol_multiplier', 1.0)
+        vol_len = params.get('vol_len', 10)
+        vol_multiplier = params.get('vol_multiplier', 1.5)
         price_move_pct = params.get('price_move_pct', 1.0)
+        trail_stop_pct = params.get('trail_stop_pct', 0.2)
 
         #2. Pobierz dane historyczne z IBKR
-        df = fetch_data_from_IBKR(gw, SYMBOL, '1 D', '5m', use_rth=True)
+        df = fetch_data_from_IBKR(gw, SYMBOL, '1 D', TIMEFRAME, use_rth=True)
         if df is None:
             logger.error('No initial data — market may be closed or pacing violation. Exiting.')
             return
@@ -112,6 +115,7 @@ def main():
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
         last_processed_candle = None
+        contract = gw.make_stock_contract(SYMBOL)
         while True:
             # Interleave ib.sleep (asyncio) and plt.pause (GUI) so both stay responsive.
             for _ in range(CHECK_INTERVAL):
@@ -123,42 +127,59 @@ def main():
             #logger.debug('...')
             now = time.time()
             #logger.debug(f'tick: now={now:.0f}, last_fetch={last_fetch:.0f}, diff={now - last_fetch:.0f}s')
-            if now - last_fetch >= 300:
+            #Zbuduj równanie
+            if now - last_fetch >= 600: #5minut * 60 = 300s; 10min *60 =600s
                 #4. Download life data
-                df = fetch_data_from_IBKR(gw, SYMBOL, '7200 S', '5m', use_rth=True) #20 x 5 min = 100 min <= 7200 s
-                df = df.tail(20)
+                # W zaleności od ilości świeczek do analizy, pobieramy dane historyczne z IBKR. W tym przypadku pobieramy 20 świeczek po 5 minut każda, co daje nam 100 minut danych (7200 sekund).
+                df = fetch_data_from_IBKR(gw, SYMBOL, '7200 S', TIMEFRAME, use_rth=True) #12 x 10 min = 120 min <= 7200 s
+                df = df.tail(vol_len)
                 last_candle = df.iloc[-2]
                 candle_time = last_candle.name  # DatetimeIndex — unique per candle
-                price = last_candle['Close']
-                volume = last_candle['Volume']
-                #5. Update indicators
-                mean_price = df['Close'].mean()
-                mean_volume = df['Volume'].mean()
-                logger.debug(f'Last candle - Price: {price:.2f}, Mean Price: {mean_price:.2f}, Last candle - Volume: {volume:.2f}, Mean Volume: {mean_volume:.2f}')
-                #6. Update plot
-                #7. Check for signals and execute orders
-                volume_threshold = mean_volume * vol_multiplier
-                price_threshold = mean_price * price_move_pct
-                #logger.debug(f'Volume threshold: {volume_threshold:.2f}')
+
                 if candle_time == last_processed_candle:
                     logger.debug(f'{YELLOW}Candle {candle_time} already processed, skipping.{RESET}')
                 else:
-                    #Limit order testing:
-                    contract = gw.make_stock_contract(SYMBOL)
-                    # entry, tp, trail = gw.place_bracket_trailing( #market order with trailing stop loss
-                    #     contract,
-                    #     action='SELL',#BUY or SELL
-                    #     quantity=1,
-                    #     limit_price=round(price * 0.995, 2),  # SELL limit: slightly below market → fills immediately, for BUY - slightly above market 1.005
-                    #     trail_percent=0.5,       # or trail_amount=1.0 for fixed $
-                    # )
-                    entry, tp, trail = gw.place_bracket_trailing( #market order with trailing stop loss
-                        contract,
-                        action='BUY',#BUY or SELL
-                        quantity=1,
-                        limit_price=round(price * 1.005, 2),  # BUY limit: slightly above market → fills immediately, for SELL - slightly below market 0.995
-                        trail_percent=0.5,       # or trail_amount=1.0 for fixed $
-                    )
+                    price = last_candle['Close']
+                    volume = last_candle['Volume']
+                    #5. Update indicators
+                    df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open']
+                    current_pct = df['candle_pct'].iloc[-2]
+                    mean_abs_change = df['candle_pct'].abs().mean()
+                    mean_volume = df['Volume'].mean()
+                    #7. Check for signals and execute orders
+                    volume_threshold = mean_volume * vol_multiplier
+                    price_threshold = mean_abs_change * price_move_pct
+
+                    if volume > volume_threshold and current_pct > price_threshold:
+                        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+                        SIGNAL = 'BUY'
+                    elif volume > volume_threshold and current_pct < -price_threshold:
+                        logger.info(f'{RED}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+                        SIGNAL = 'SELL'
+                    else:
+                        SIGNAL = None
+
+                    positions = gw.get_positions()
+                    already_in_position = any(getattr(p.contract, 'symbol', None) == SYMBOL for p in positions)
+                    if SIGNAL and already_in_position:
+                        logger.info(f'{YELLOW}Signal {SIGNAL} skipped — already in position.{RESET}')
+                    elif SIGNAL == 'SELL':
+                        entry, tp, trail = gw.place_bracket_trailing(
+                            contract,
+                            action='SELL',
+                            quantity=1,
+                            limit_price=round(price * 0.995, 2),
+                            trail_percent=trail_stop_pct,
+                        )
+                    elif SIGNAL == 'BUY':
+                        entry, tp, trail = gw.place_bracket_trailing(
+                            contract,
+                            action='BUY',
+                            quantity=1,
+                            limit_price=round(price * 1.005, 2),
+                            trail_percent=trail_stop_pct,
+                        )
+                    
                     last_processed_candle = candle_time
                 #printing positions
                 positions = gw.get_positions()

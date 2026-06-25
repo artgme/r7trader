@@ -29,19 +29,21 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
 def make_fill_handler(log_path: Path, default_symbol: str):
     def _on_fill(trade, fill, _):
         symbol     = getattr(trade.contract, 'symbol', default_symbol)
-        order_type = trade.order.orderType  # 'LMT', 'MKT', 'TRAIL'
+        order_type = trade.order.orderType
         side       = fill.execution.side    # 'BOT' or 'SLD'
         price      = fill.execution.avgPrice
         size       = fill.execution.shares
+        has_oca    = bool(getattr(trade.order, 'ocaGroup', ''))
 
-        if side == 'BOT':
-            action, position_after = 'enter_long', 'long'
+        # Entry orders have no OCA group; TP exits do (TRAIL may or may not).
+        is_entry = order_type in ('LMT', 'MKT') and not has_oca
+
+        if is_entry:
+            action, position_after = ('enter_long', 'long') if side == 'BOT' else ('enter_short', 'short')
         elif order_type == 'TRAIL':
-            action, position_after = 'exit_long_trail', 'flat'
-        elif order_type == 'LMT':
-            action, position_after = 'exit_long_tp', 'flat'
-        else:
-            action, position_after = 'exit_long', 'flat'
+            action, position_after = ('exit_long_trail', 'flat') if side == 'SLD' else ('exit_short_trail', 'flat')
+        else:  # LMT with OCA = take profit
+            action, position_after = ('exit_long_tp', 'flat') if side == 'SLD' else ('exit_short_tp', 'flat')
 
         log_trade_csv(log_path, action, symbol, price, size, position_after)
 
