@@ -1,0 +1,5 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-06-26T13:57:51.645967+00:00,SPCX,ibkr,enter_long,151.11,1.0,long
+2026-06-26T13:59:07.181641+00:00,SPCX,ibkr,exit_long_trail,151.33,1.0,flat
+2026-06-26T15:52:39.891871+00:00,SPCX,ibkr,enter_long,156.19,1.0,long
+2026-06-26T15:53:47.853713+00:00,SPCX,ibkr,exit_long_trail,155.92,1.0,flat

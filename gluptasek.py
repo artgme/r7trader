@@ -21,12 +21,13 @@ from logging_functions import init_trade_log, make_fill_handler
 
 CLIENT_ID=78
 
-CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
+CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOL = 'RKLB' #ASM, BESI - EUR
 TIMEFRAME = '10m'
+QUANTITY = 100
 
 
-TRADE_LOG = Path('logs/trades_rklb_gluptasek_25Jun1.csv')
+TRADE_LOG = Path('logs/trades_rklb_gluptasek_26Jun2.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -194,7 +195,7 @@ def main():
                         entry, tp, trail = gw.place_bracket_trailing(
                             contract,
                             action='SELL',
-                            quantity=1,
+                            quantity=QUANTITY,
                             limit_price=round_to_tick(price * 0.995, tick_size),
                             trail_percent=trail_stop_pct,
                         )
@@ -202,7 +203,7 @@ def main():
                         entry, tp, trail = gw.place_bracket_trailing(
                             contract,
                             action='BUY',
-                            quantity=1,
+                            quantity=QUANTITY,
                             limit_price=round_to_tick(price * 1.005, tick_size),
                             trail_percent=trail_stop_pct,
                         )

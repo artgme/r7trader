@@ -1,0 +1,3 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-06-26T19:12:37.031720+00:00,RKLB,ibkr,enter_short,83.82,100.0,short
+2026-06-26T19:32:46.958249+00:00,RKLB,ibkr,exit_short_trail,84.01,100.0,flat
