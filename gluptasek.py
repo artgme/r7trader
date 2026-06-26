@@ -19,11 +19,11 @@ import configs_rocketJanek as cfg
 import time
 from logging_functions import init_trade_log, make_fill_handler
 
-CLIENT_ID=79
+CLIENT_ID=78
 
 CHECK_INTERVAL = 10  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOL = 'ASM' #ASM, BESI - EUR
-TIMEFRAME = '5m'
+SYMBOL = 'RKLB' #ASM, BESI - EUR
+TIMEFRAME = '10m'
 
 
 TRADE_LOG = Path('logs/trades_rklb_gluptasek_25Jun1.csv')
