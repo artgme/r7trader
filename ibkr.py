@@ -104,13 +104,13 @@ class IBKRGateway:
     # bar_size accepts short format ('5m', '1h', '1d') or raw IBKR format ('5 mins', '1 hour', '1 day').
     # what_to_show: 'TRADES' for stocks, 'MIDPOINT' or 'BID_ASK' for Forex/crypto.
     # use_rth=False includes pre/post-market and overnight sessions.
-    def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5m', what_to_show: str = 'TRADES', use_rth: bool = False):
+    def fetch_historical(self, contract: Contract, duration: str = '1 D', bar_size: str = '5m', what_to_show: str = 'TRADES', use_rth: bool = False, end_dt=None):
         symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
         bar_size = _BAR_SIZE.get(bar_size, bar_size)
         logger.info('Requesting historical data: %s, duration=%s, bar_size=%s, what_to_show=%s', symbol, duration, bar_size, what_to_show)
         bars = self.ib.reqHistoricalData(
             contract,
-            endDateTime='',  # '' means "up to now"
+            endDateTime=end_dt or '',  # '' means "up to now"; pass datetime to bound the window
             durationStr=duration,
             barSizeSetting=bar_size,
             whatToShow=what_to_show,

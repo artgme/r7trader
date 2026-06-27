@@ -12,6 +12,7 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import sys
 import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,9 +20,10 @@ import mplfinance as mpf
 from ibkr import IBKRGateway
 
 CLIENT_ID = 80
-BAR_SIZE = '10m'
-BAR_SECONDS = 5 * 60
+BAR_SIZE = '1m'
+BAR_SECONDS = 1 * 60  # candle size in minutes * 60 seconds
 CANDLE_PADDING = 10
+PLIK = 'logs/trades_spcx_gluptasek_26Jun1.csv'
 
 # action → (marker, color)
 MARKER_STYLE = {
@@ -54,18 +56,18 @@ def read_trades(filepath: Path, ticker: str) -> list[dict]:
 
 # Usage: df = fetch_candles(gw, 'RKLB', earliest_dt, latest_dt, currency='USD')
 def fetch_candles(gw: IBKRGateway, symbol: str, earliest_dt, latest_dt, currency: str = 'USD') -> pd.DataFrame | None:
-    """Fetch 5-min OHLCV bars from IBKR covering earliest_dt-10 bars through now."""
+    """Fetch 1-min OHLCV bars from IBKR covering earliest_dt-10 bars through latest_dt+10 bars."""
     pad = datetime.timedelta(seconds=CANDLE_PADDING * BAR_SECONDS)
-    now = datetime.datetime.now(datetime.timezone.utc)
     start = earliest_dt - pad
-    duration_sec = int((now - start).total_seconds())
+    end   = latest_dt  + pad
+    duration_sec = int((end - start).total_seconds())
     if duration_sec > 86400:
-        duration = f'{(duration_sec + 86399) // 86400} D'  # IBKR rejects >86400 S for 5-min bars
+        duration = f'{(duration_sec + 86399) // 86400} D'
     else:
         duration = f'{duration_sec} S'
 
     contract = gw.make_stock_contract(symbol, currency=currency)
-    bars = gw.fetch_historical(contract, duration=duration, bar_size=BAR_SIZE, use_rth=False)
+    bars = gw.fetch_historical(contract, duration=duration, bar_size=BAR_SIZE, use_rth=True, end_dt=end)
     if not bars:
         logger.error('No data returned for %s', symbol)
         return None
@@ -76,6 +78,10 @@ def fetch_candles(gw: IBKRGateway, symbol: str, earliest_dt, latest_dt, currency
     } for b in bars])
     df['Date'] = pd.to_datetime(df['Date'])
     df.set_index('Date', inplace=True)
+    # ib_insync (formatDate=1) returns tz-naive ET times; make them tz-aware
+    # so _bar_idx can compare correctly against UTC-aware CSV timestamps.
+    if df.index.tz is None:
+        df.index = df.index.tz_localize(ZoneInfo('America/New_York'))
     return df
 
 
@@ -100,6 +106,12 @@ def calc_pnl(trades: list[dict]) -> list[dict]:
     return result
 
 
+def _bar_idx(df: pd.DataFrame, ts) -> int:
+    """Return the bar index containing ts, converting ts to df.index timezone first."""
+    ts_cmp = ts.tz_convert(df.index.tz) if df.index.tz is not None else ts.replace(tzinfo=None)
+    return df.index.searchsorted(ts_cmp, side='right') - 1
+
+
 # Usage: addplots = make_trade_addplots(df, trades)
 def make_trade_addplots(df: pd.DataFrame, trades: list[dict]) -> list:
     """Build mplfinance addplot marker objects from trade list.
@@ -110,9 +122,8 @@ def make_trade_addplots(df: pd.DataFrame, trades: list[dict]) -> list:
         for trade in trades:
             if trade['action'] != action:
                 continue
-            ts = trade['date']  # UTC-aware, matches tz-aware df index from ib_insync
-            idx = df.index.searchsorted(ts)
-            if idx >= len(df):
+            idx = _bar_idx(df, trade['date'])
+            if idx < 0 or idx >= len(df):
                 continue
             prices.iloc[idx] = trade['price']
         if not prices.isna().all():
@@ -122,10 +133,31 @@ def make_trade_addplots(df: pd.DataFrame, trades: list[dict]) -> list:
     return addplots
 
 
+# Usage: annotate_trades(axes[0], df, trades)
+def annotate_trades(ax, df: pd.DataFrame, trades: list[dict]) -> None:
+    """Add Entry/Exit text labels next to each trade marker on the price axis."""
+    for trade in trades:
+        idx = _bar_idx(df, trade['date'])
+        if idx < 0 or idx >= len(df):
+            continue
+        is_entry = trade['action'].startswith('enter')
+        label  = 'Entry' if is_entry else 'Exit'
+        color  = 'green' if is_entry else 'lime'
+        offset = (0, 8)  if is_entry else (0, -8)
+        va     = 'bottom' if is_entry else 'top'
+        ax.annotate(
+            label,
+            xy=(idx, trade['price']),
+            xytext=offset,
+            textcoords='offset points',
+            fontsize=8, color=color, ha='center', va=va,
+        )
+
+
 def main():
     ticker   = sys.argv[1] if len(sys.argv) > 1 else 'RKLB'
     currency = sys.argv[2] if len(sys.argv) > 2 else 'USD'
-    filepath = Path('logs/trades_rklb_gluptasek_26Jun1.csv')
+    filepath = Path(PLIK)
 
     trades = read_trades(filepath, ticker)
     if not trades:
@@ -169,6 +201,7 @@ def main():
     if addplots:
         kwargs['addplot'] = addplots
     fig, axes = mpf.plot(df, **kwargs)
+    annotate_trades(axes[0], df, trades)
     plt.show()
 
 
