@@ -37,6 +37,66 @@ CYAN   = '\033[36m'
 WHITE  = '\033[37m'
 RESET  = '\033[0m'
 
+def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, price: float, trail_stop_loss: float, tick_size: float):
+    #Skip an order in case we are already in position for the same symbol
+    if not signal:
+        #logger.debug(f'{YELLOW}No signal generated, skipping trade execution.{RESET}')
+        return
+    positions = gw.get_positions()
+    already_in_position = any(getattr(p.contract, 'symbol', None) == symbol for p in positions)
+
+    if already_in_position:
+        logger.info(f'{YELLOW}Signal {signal} skipped — already in position.{RESET}')
+    elif signal == 'SELL':
+        entry, tp, trail = gw.place_bracket_trailing(
+            contract,
+            action='SELL',
+            quantity=quantity,
+            limit_price=round_to_tick(price * 0.995, tick_size),
+            trail_percent=trail_stop_loss,
+        )
+    elif signal == 'BUY':
+        entry, tp, trail = gw.place_bracket_trailing(
+            contract,
+            action='BUY',
+            quantity=quantity,
+            limit_price=round_to_tick(price * 1.005, tick_size),
+            trail_percent=trail_stop_loss,
+        )
+
+def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float) -> tuple:
+    #1. Aktualne dane
+    last_candle = df.iloc[-2]
+    price = last_candle['Close'] #use in stop loss and take profit orders
+    volume = last_candle['Volume']
+
+    #2. Zaktualizuj indykatory
+    #df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open']
+    df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open'].replace(0, float('nan'))
+    #print(df['candle_pct'])
+    current_pct = df['candle_pct'].iloc[-2]
+    mean_abs_change = df['candle_pct'].abs().iloc[:-2].mean()
+    #trail_stop_loss = max(mean_abs_change * trail_stop_pct, 0.1)
+    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.2), 3.0)
+    logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
+    #print(f'Mean absolute change: {mean_abs_change:.2f}%')
+    mean_volume = df['Volume'].mean()
+    
+    volume_threshold = mean_volume * vol_multiplier
+    price_threshold = mean_abs_change * price_move_pct
+    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}{RESET}')
+    #3. Check conditions for buy/sell signals
+    if volume > volume_threshold and current_pct > price_threshold:
+        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+        SIGNAL = 'BUY'
+    elif volume > volume_threshold and current_pct < -price_threshold:
+        logger.info(f'{RED}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+        SIGNAL = 'SELL'
+    else:
+        SIGNAL = None
+
+    return SIGNAL, price, trail_stop_loss
+
 def round_to_tick(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, 10)
 
@@ -131,11 +191,9 @@ def main():
         logger.debug(f'Mean closing price for {SYMBOL}: {mean_price:.2f}')
         mean_volume = df['Volume'].mean()
         logger.debug(f'Mean volume for {SYMBOL}: {mean_volume:.2f}')
-
         #3. Wyświetl dane na wykresie
         fig, axes = plot_candles_and_mean(df, mean_price, mean_volume)
         plt.pause(0.5)  # let the window render before entering the loop
-
         # Keep running, periodically verifying the connection is alive.
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
@@ -152,74 +210,34 @@ def main():
             #logger.debug('...')
             now = time.time()
             #logger.debug(f'tick: now={now:.0f}, last_fetch={last_fetch:.0f}, diff={now - last_fetch:.0f}s')
-            #Zbuduj równanie
-            if now - last_fetch >= fetch_interval: #5minut * 60 = 300s; 10min *60 =600s
-                #4. Download life data
-                # W zaleności od ilości świeczek do analizy, pobieramy dane historyczne z IBKR. W tym przypadku pobieramy 20 świeczek po 5 minut każda, co daje nam 100 minut danych (7200 sekund).
+            if now - last_fetch >= fetch_interval: #5 minutes * 60 = 300s; 10min *60 =600s
+                #4. Ściągnij dane z IBKR
                 df = fetch_data_from_IBKR(gw, SYMBOL, duration, TIMEFRAME, use_rth=True, currency=currency_par) #12 x 10 min = 120 min <= 7200 s
-                df = df.tail(vol_len)
+                if df is None: #In case there are no new bars, skip the rest of the loop
+                    last_fetch = now
+                    continue
+                df = df.tail(vol_len).copy()
+
+                #5. Sprawdź czy świeca już była przetworzona, jeśli tak to pomiń logikę wejścia
                 last_candle = df.iloc[-2]
                 candle_time = last_candle.name  # DatetimeIndex — unique per candle
-
                 if candle_time == last_processed_candle:
                     logger.debug(f'{YELLOW}Candle {candle_time} already processed, skipping.{RESET}')
                 else:
-                    price = last_candle['Close'] #use in stop loss and take profit orders
-                    volume = last_candle['Volume']
-                    #5. Update indicators
-                    df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open']
-                    #print(df['candle_pct'])
-                    current_pct = df['candle_pct'].iloc[-2]
-                    mean_abs_change = df['candle_pct'].abs().mean()
-                    mean_abs_change_sl = df['candle_pct'].abs().iloc[:-2].mean()
-                    trail_stop_loss = max(mean_abs_change_sl * trail_stop_pct, 0.1)
-                    logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
-                    #print(f'Mean absolute change: {mean_abs_change:.2f}%')
-                    mean_volume = df['Volume'].mean()
-                    #7. Check for signals and execute orders
-                    volume_threshold = mean_volume * vol_multiplier
-                    price_threshold = mean_abs_change * price_move_pct
-                    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}{RESET}')
-
-                    if volume > volume_threshold and current_pct > price_threshold:
-                        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
-                        SIGNAL = 'BUY'
-                    elif volume > volume_threshold and current_pct < -price_threshold:
-                        logger.info(f'{RED}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
-                        SIGNAL = 'SELL'
-                    else:
-                        SIGNAL = None
-
-                    positions = gw.get_positions()
-                    already_in_position = any(getattr(p.contract, 'symbol', None) == SYMBOL for p in positions)
-                    if SIGNAL and already_in_position:
-                        logger.info(f'{YELLOW}Signal {SIGNAL} skipped — already in position.{RESET}')
-                    elif SIGNAL == 'SELL':
-                        entry, tp, trail = gw.place_bracket_trailing(
-                            contract,
-                            action='SELL',
-                            quantity=QUANTITY,
-                            limit_price=round_to_tick(price * 0.995, tick_size),
-                            trail_percent=trail_stop_loss,
-                        )
-                    elif SIGNAL == 'BUY':
-                        entry, tp, trail = gw.place_bracket_trailing(
-                            contract,
-                            action='BUY',
-                            quantity=QUANTITY,
-                            limit_price=round_to_tick(price * 1.005, tick_size),
-                            trail_percent=trail_stop_loss,
-                        )
-                    
+                    #Entry logic
+                    signal, price, trail_stop_loss = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    execute_trade(gw, SYMBOL, signal, contract, QUANTITY, price, trail_stop_loss, tick_size)
                     last_processed_candle = candle_time
-                #printing positions
+                
+                #6. printing positions
                 positions = gw.get_positions()
                 if positions:
                     for p in positions:
                         logger.debug(f'{BLUE}Position: {p}{RESET}')
                 else:
                     logger.debug(f'{YELLOW}No open positions.{RESET}')
-                last_fetch = now
+
+                last_fetch = now #update timer
                 #logger.debug(f'Next fetch in 300s at {time.strftime("%H:%M:%S", time.localtime(last_fetch + 300))}')
 
     except KeyboardInterrupt:
