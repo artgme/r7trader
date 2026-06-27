@@ -171,12 +171,15 @@ def main():
                     #print(df['candle_pct'])
                     current_pct = df['candle_pct'].iloc[-2]
                     mean_abs_change = df['candle_pct'].abs().mean()
+                    mean_abs_change_sl = df['candle_pct'].abs().iloc[:-2].mean()
+                    trail_stop_loss = max(mean_abs_change_sl * trail_stop_pct, 0.1)
+                    logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
                     #print(f'Mean absolute change: {mean_abs_change:.2f}%')
                     mean_volume = df['Volume'].mean()
                     #7. Check for signals and execute orders
                     volume_threshold = mean_volume * vol_multiplier
                     price_threshold = mean_abs_change * price_move_pct
-                    print(f'volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, mean_abs_change: {mean_abs_change:.2f}')
+                    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}{RESET}')
 
                     if volume > volume_threshold and current_pct > price_threshold:
                         logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
@@ -197,7 +200,7 @@ def main():
                             action='SELL',
                             quantity=QUANTITY,
                             limit_price=round_to_tick(price * 0.995, tick_size),
-                            trail_percent=trail_stop_pct,
+                            trail_percent=trail_stop_loss,
                         )
                     elif SIGNAL == 'BUY':
                         entry, tp, trail = gw.place_bracket_trailing(
@@ -205,7 +208,7 @@ def main():
                             action='BUY',
                             quantity=QUANTITY,
                             limit_price=round_to_tick(price * 1.005, tick_size),
-                            trail_percent=trail_stop_pct,
+                            trail_percent=trail_stop_loss,
                         )
                     
                     last_processed_candle = candle_time

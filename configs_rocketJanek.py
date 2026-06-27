@@ -8,13 +8,13 @@ PARAMS: dict = {
     'MomentumV8Strategy': {
         'ASM': {
             '5m': {'vol_len': 10, 'vol_multiplier': 1.0, 'price_move_pct': 1.0,
-                    'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 1.00},
+                    'trail_stop_pct': 0.50, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 1.00},
         },
         'BESI': {
             '5m': {'vol_len': 10, 'vol_multiplier': 1.0, 'price_move_pct': 1.0,
-                    'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 0.10},
+                    'trail_stop_pct': 0.50, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 0.10},
             '10m': {'vol_len': 7, 'vol_multiplier': 1.0, 'price_move_pct': 1.0,
-                    'trail_stop_pct': 0.20, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 0.10},
+                    'trail_stop_pct': 0.50, 'stop_loss_pct': 0.50, 'currency': 'EUR', 'tick_size': 0.10},
         },
         'RKLB': {
             '10m': {'vol_len': 7, 'vol_multiplier': 1.5, 'price_move_pct': 1.4,
