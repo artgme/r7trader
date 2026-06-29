@@ -163,7 +163,7 @@ class IBKRGateway:
         trail_amount: float = None,
         limit_price: float = None,
         take_profit_price: float = None,
-        fill_timeout: float = 30.0,
+        fill_timeout: float = 60.0,
     ):
         if trail_percent is None and trail_amount is None:
             raise ValueError(f'{RED}Provide either trail_percent or trail_amount{RESET}')
@@ -213,7 +213,9 @@ class IBKRGateway:
         status = placed_entry.orderStatus.status
         logger.info(f'{GREEN}Entry status: %s{RESET}', status)
         if status != 'Filled':
-            logger.warning(f'{YELLOW}Entry not filled after {fill_timeout}s (status={status}) — skipping trail{RESET}')
+            logger.warning(f'{YELLOW}Entry not filled after {fill_timeout}s (status={status}) — cancelling order{RESET}')
+            self.ib.cancelOrder(placed_entry.order)
+            self.ib.sleep(1)
             return placed_entry, None, None
 
         filled_qty = placed_entry.orderStatus.filled

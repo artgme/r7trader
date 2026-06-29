@@ -1,0 +1,13 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-06-29T18:16:42.251492+00:00,QNT,ibkr,enter_short,70.95,10.0,short
+2026-06-29T18:19:25.316478+00:00,QNT,ibkr,exit_short_trail,71.11,10.0,flat
+2026-06-29T18:46:50.067126+00:00,QNT,ibkr,enter_long,74.02,10.0,long
+2026-06-29T18:48:58.768642+00:00,QNT,ibkr,exit_long_trail,74.12,10.0,flat
+2026-06-29T19:06:56.083117+00:00,QNT,ibkr,enter_long,73.8,10.0,long
+2026-06-29T19:07:00.120590+00:00,NBIS,ibkr,enter_long,261.93,10.0,long
+2026-06-29T19:08:04.078788+00:00,QNT,ibkr,exit_long_trail,73.72,10.0,flat
+2026-06-29T19:10:04.657122+00:00,NBIS,ibkr,exit_long_trail,261.04,10.0,flat
+2026-06-29T19:17:04.285285+00:00,SATL,ibkr,enter_long,5.49,10.0,long
+2026-06-29T19:30:22.660093+00:00,SATL,ibkr,exit_long_trail,5.5,10.0,flat
+2026-06-29T19:57:13.523609+00:00,SATL,ibkr,enter_long,5.68,10.0,long
+2026-06-29T19:58:49.312695+00:00,SATL,ibkr,exit_long_trail,5.67,10.0,flat

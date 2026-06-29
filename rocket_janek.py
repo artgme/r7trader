@@ -19,15 +19,16 @@ import configs_rocketJanek as cfg
 import time
 from logging_functions import init_trade_log, make_fill_handler
 
-CLIENT_ID=78
+CLIENT_ID=79
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = ['RKLB', 'BESI', 'ASM']
-SYMBOL_CURRENCY = {'RKLB': 'USD', 'BESI': 'EUR', 'ASM': 'EUR'}
+SYMBOLS = ['QNT', 'RKLB', 'SATL', 'NBIS', 'INTC']
+SYMBOL_CURRENCY = {'QNT': 'USD', 'RKLB': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD'}
 TIMEFRAME = '10m'
 QUANTITY = 10
+FILL_TIMEOUT = 10
 
-TRADE_LOG = Path('logs/trades_rocket_janek.csv')
+TRADE_LOG = Path('logs/trades_rocket_janek_2905_03.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -37,7 +38,7 @@ CYAN   = '\033[36m'
 WHITE  = '\033[37m'
 RESET  = '\033[0m'
 
-def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, price: float, trail_stop_loss: float, tick_size: float, positions: list):
+def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, trail_stop_loss: float, fill_timeout: float, positions: list):
     if not signal:
         return
     already_in_position = any(getattr(p.contract, 'symbol', None) == symbol for p in positions)
@@ -49,16 +50,16 @@ def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity:
             contract,
             action='SELL',
             quantity=quantity,
-            limit_price=round_to_tick(price * 0.995, tick_size),
             trail_percent=trail_stop_loss,
+            fill_timeout=fill_timeout,
         )
     elif signal == 'BUY':
         entry, tp, trail = gw.place_bracket_trailing(
             contract,
             action='BUY',
             quantity=quantity,
-            limit_price=round_to_tick(price * 1.005, tick_size),
             trail_percent=trail_stop_loss,
+            fill_timeout=fill_timeout,
         )
 
 def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float) -> tuple:
@@ -74,7 +75,7 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
     current_pct = df['candle_pct'].iloc[-2]
     mean_abs_change = df['candle_pct'].abs().iloc[:-2].mean()
     #trail_stop_loss = max(mean_abs_change * trail_stop_pct, 0.1)
-    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.2), 3.0)
+    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.4), 3.0)
     logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
     #print(f'Mean absolute change: {mean_abs_change:.2f}%')
     mean_volume = df['Volume'].mean()
@@ -87,7 +88,7 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
         logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
         SIGNAL = 'BUY'
     elif volume > volume_threshold and current_pct < -price_threshold:
-        logger.info(f'{RED}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+        logger.info(f'{CYAN}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
         SIGNAL = 'SELL'
     else:
         SIGNAL = None
@@ -96,6 +97,15 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
 
 def round_to_tick(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, 10)
+
+def get_tick_size(price: float, currency: str) -> float:
+    if currency == 'USD':
+        return 0.0001 if price < 1.0 else 0.01
+    if price < 10:   return 0.01
+    if price < 100:  return 0.05
+    if price < 500:  return 0.10
+    if price < 1000: return 0.50
+    return 1.00
 
 def timeframe_to_seconds(tf: str) -> int:
     if tf.endswith('m'):
@@ -168,8 +178,9 @@ def main():
 
         vol_multiplier = params.get('vol_multiplier', 1.5)
         price_move_pct = params.get('price_move_pct', 1.0)
-        trail_stop_pct = params.get('trail_stop_pct', 0.2)
-        tick_size = params.get('tick_size', 0.01)
+        trail_stop_pct = params.get('trail_stop_pct', 0.5)
+
+        logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}{RESET}")
 
         #2. Calculating timings for fetching data:
         tf_seconds = timeframe_to_seconds(TIMEFRAME)
@@ -220,13 +231,14 @@ def main():
                         continue
 
                     #6. Entry logic
-                    signal, price, trail_stop_loss = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
-                    execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, price, trail_stop_loss, tick_size, positions)
+                    signal, _, trail_stop_loss = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
                     last_processed_candle[symbol] = candle_time
 
                 #7. Print positions
-                if positions:
-                    for p in positions:
+                current_positions = gw.get_positions()
+                if current_positions:
+                    for p in current_positions:
                         logger.debug(f'{BLUE}Position: {p}{RESET}')
                 else:
                     logger.debug(f'{YELLOW}No open positions.{RESET}')

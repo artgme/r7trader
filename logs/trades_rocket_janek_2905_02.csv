@@ -1,0 +1,7 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-06-29T14:04:07.005498+00:00,SATL,ibkr,enter_long,5.11,10.0,long
+2026-06-29T14:04:43.779674+00:00,SATL,ibkr,exit_long_trail,5.1,10.0,flat
+2026-06-29T14:25:18.019764+00:00,QNT,ibkr,enter_short,72.33,10.0,short
+2026-06-29T14:26:03.069225+00:00,QNT,ibkr,exit_short_trail,73.5,10.0,flat
+2026-06-29T15:52:06.962094+00:00,RKLB,ibkr,enter_short,93.61,10.0,short
+2026-06-29T16:37:03.909793+00:00,SATL,ibkr,enter_long,5.5,10.0,long

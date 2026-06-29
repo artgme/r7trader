@@ -22,8 +22,8 @@ from ibkr import IBKRGateway
 CLIENT_ID = 80
 BAR_SIZE = '1m'
 BAR_SECONDS = 1 * 60  # candle size in minutes * 60 seconds
-CANDLE_PADDING = 10
-PLIK = 'logs/trades_spcx_gluptasek_26Jun1.csv'
+CANDLE_PADDING = 3
+PLIK = 'logs/trades_rocket_janek_2905_03.csv'
 
 # action → (marker, color)
 MARKER_STYLE = {
@@ -38,6 +38,8 @@ MARKER_STYLE = {
 def read_trades(filepath: Path, ticker: str) -> list[dict]:
     """Read trade log CSV, deduplicate, filter to ticker. Returns list of dicts with
     keys: date, ticker, action, price, size."""
+    if not Path(filepath).exists():
+        raise FileNotFoundError(f"Trade log not found: {filepath}")
     df = pd.read_csv(filepath)
     df = df.drop_duplicates()
     df = df[df['symbol'] == ticker].copy()
@@ -54,10 +56,10 @@ def read_trades(filepath: Path, ticker: str) -> list[dict]:
     ]
 
 
-# Usage: df = fetch_candles(gw, 'RKLB', earliest_dt, latest_dt, currency='USD')
-def fetch_candles(gw: IBKRGateway, symbol: str, earliest_dt, latest_dt, currency: str = 'USD') -> pd.DataFrame | None:
-    """Fetch 1-min OHLCV bars from IBKR covering earliest_dt-10 bars through latest_dt+10 bars."""
-    pad = datetime.timedelta(seconds=CANDLE_PADDING * BAR_SECONDS)
+# Usage: df = fetch_candles(gw, 'RKLB', earliest_dt, latest_dt, currency='USD', bar_size='10m', bar_seconds=600)
+def fetch_candles(gw: IBKRGateway, symbol: str, earliest_dt, latest_dt, currency: str = 'USD', bar_size: str = BAR_SIZE, bar_seconds: int = BAR_SECONDS) -> pd.DataFrame | None:
+    """Fetch OHLCV bars from IBKR covering earliest_dt-CANDLE_PADDING bars through latest_dt+CANDLE_PADDING bars."""
+    pad = datetime.timedelta(seconds=CANDLE_PADDING * bar_seconds)
     start = earliest_dt - pad
     end   = latest_dt  + pad
     duration_sec = int((end - start).total_seconds())
@@ -67,7 +69,7 @@ def fetch_candles(gw: IBKRGateway, symbol: str, earliest_dt, latest_dt, currency
         duration = f'{duration_sec} S'
 
     contract = gw.make_stock_contract(symbol, currency=currency)
-    bars = gw.fetch_historical(contract, duration=duration, bar_size=BAR_SIZE, use_rth=True, end_dt=end)
+    bars = gw.fetch_historical(contract, duration=duration, bar_size=bar_size, use_rth=True, end_dt=end)
     if not bars:
         logger.error('No data returned for %s', symbol)
         return None
@@ -112,10 +114,11 @@ def _bar_idx(df: pd.DataFrame, ts) -> int:
     return df.index.searchsorted(ts_cmp, side='right') - 1
 
 
-# Usage: addplots = make_trade_addplots(df, trades)
-def make_trade_addplots(df: pd.DataFrame, trades: list[dict]) -> list:
+# Usage: addplots = make_trade_addplots(df, trades, ax=ax)
+def make_trade_addplots(df: pd.DataFrame, trades: list[dict], ax=None) -> list:
     """Build mplfinance addplot marker objects from trade list.
-    Marker shapes: ^ enter_long (green), v enter_short (red), x exits (lime/orange)."""
+    Marker shapes: ^ enter_long (green), v enter_short (red), x exits (lime/orange).
+    Pass ax= when using mplfinance external axes mode."""
     addplots = []
     for action, (marker, color) in MARKER_STYLE.items():
         prices = pd.Series(float('nan'), index=df.index)
@@ -127,9 +130,10 @@ def make_trade_addplots(df: pd.DataFrame, trades: list[dict]) -> list:
                 continue
             prices.iloc[idx] = trade['price']
         if not prices.isna().all():
-            addplots.append(
-                mpf.make_addplot(prices, type='scatter', markersize=100, marker=marker, color=color)
-            )
+            ap_kwargs = dict(type='scatter', markersize=100, marker=marker, color=color)
+            if ax is not None:
+                ap_kwargs['ax'] = ax
+            addplots.append(mpf.make_addplot(prices, **ap_kwargs))
     return addplots
 
 
@@ -159,7 +163,11 @@ def main():
     currency = sys.argv[2] if len(sys.argv) > 2 else 'USD'
     filepath = Path(PLIK)
 
-    trades = read_trades(filepath, ticker)
+    try:
+        trades = read_trades(filepath, ticker)
+    except FileNotFoundError as e:
+        logger.error('%s', e)
+        return
     if not trades:
         logger.error('No trades found for %s in %s', ticker, filepath)
         return
@@ -177,6 +185,8 @@ def main():
 
     earliest = min(t['date'] for t in trades)
     latest   = max(t['date'] for t in trades)
+    entry_trades = [t for t in trades if t['action'].startswith('enter')]
+    exit_trades  = [t for t in trades if t['action'].startswith('exit')]
 
     gw = IBKRGateway(client_id=CLIENT_ID)
     if not gw.ensure_connected():
@@ -184,24 +194,87 @@ def main():
         return
 
     try:
-        df = fetch_candles(gw, ticker, earliest, latest, currency=currency)
+        df_10m = fetch_candles(gw, ticker, earliest, latest, currency=currency,
+                               bar_size='10m', bar_seconds=10 * 60)
+        df_1m  = fetch_candles(gw, ticker, earliest, latest, currency=currency,
+                               bar_size='1m', bar_seconds=10 * 60)
     finally:
         gw.disconnect()
 
-    if df is None or df.empty:
-        logger.error('No candle data — exiting.')
+    if df_10m is None or df_10m.empty:
+        logger.error('No 10m candle data — exiting.')
+        return
+    if df_1m is None or df_1m.empty:
+        logger.error('No 1m candle data — exiting.')
         return
 
-    addplots = make_trade_addplots(df, trades)
-    kwargs = dict(
-        type='candle', volume=True,
-        title=f'{ticker} — {earliest.date()}',
-        style='charles', figsize=(14, 8), returnfig=True,
-    )
-    if addplots:
-        kwargs['addplot'] = addplots
-    fig, axes = mpf.plot(df, **kwargs)
-    annotate_trades(axes[0], df, trades)
+    fig = plt.figure(figsize=(14, 14))
+    gs = fig.add_gridspec(4, 1, height_ratios=[3, 1, 3, 1], hspace=0.4)
+    ax_10m     = fig.add_subplot(gs[0])
+    ax_10m_vol = fig.add_subplot(gs[1], sharex=ax_10m)
+    ax_1m      = fig.add_subplot(gs[2])
+    ax_1m_vol  = fig.add_subplot(gs[3], sharex=ax_1m)
+    fig.suptitle(f'{ticker} — {earliest.date()}')
+
+    # Top subplot: 10m candles with entry markers
+    entry_addplots = make_trade_addplots(df_10m, entry_trades, ax=ax_10m)
+    mpf_kwargs = dict(type='candle', ax=ax_10m, volume=ax_10m_vol, style='charles')
+    if entry_addplots:
+        mpf_kwargs['addplot'] = entry_addplots
+    mpf.plot(df_10m, **mpf_kwargs)
+    ax_10m.set_title('10m — entries')
+    annotate_trades(ax_10m, df_10m, entry_trades)
+
+    # Bottom subplot: 1m candles with exit markers
+    exit_addplots = make_trade_addplots(df_1m, exit_trades, ax=ax_1m)
+    mpf_kwargs = dict(type='candle', ax=ax_1m, volume=ax_1m_vol, style='charles')
+    if exit_addplots:
+        mpf_kwargs['addplot'] = exit_addplots
+    mpf.plot(df_1m, **mpf_kwargs)
+    ax_1m.set_title('1m — exits')
+    annotate_trades(ax_1m, df_1m, exit_trades)
+
+    for ax in (ax_10m, ax_10m_vol, ax_1m, ax_1m_vol):
+        ax.grid(axis='x', color='gray', linestyle='--', alpha=0.4, linewidth=0.5)
+
+    # Synchronize x-axes by time — mplfinance uses integer bar positions internally,
+    # so we convert bar index → timestamp → bar index in the other chart.
+    _syncing = [False]
+
+    def _sync_to_1m(_):
+        if _syncing[0]: return
+        _syncing[0] = True
+        try:
+            xmin, xmax = ax_10m.get_xlim()
+            i_min = max(0, min(int(xmin), len(df_10m) - 1))
+            i_max = max(0, min(int(xmax), len(df_10m) - 1))
+            t_min = df_10m.index[i_min].tz_convert(df_1m.index.tz)
+            t_max = df_10m.index[i_max].tz_convert(df_1m.index.tz)
+            ax_1m.set_xlim(float(df_1m.index.searchsorted(t_min)) - 0.5,
+                           float(df_1m.index.searchsorted(t_max)) + 0.5)
+        finally:
+            _syncing[0] = False
+
+    def _sync_to_10m(_):
+        if _syncing[0]: return
+        _syncing[0] = True
+        try:
+            xmin, xmax = ax_1m.get_xlim()
+            i_min = max(0, min(int(xmin), len(df_1m) - 1))
+            i_max = max(0, min(int(xmax), len(df_1m) - 1))
+            t_min = df_1m.index[i_min].tz_convert(df_10m.index.tz)
+            t_max = df_1m.index[i_max].tz_convert(df_10m.index.tz)
+            ax_10m.set_xlim(float(df_10m.index.searchsorted(t_min)) - 0.5,
+                            float(df_10m.index.searchsorted(t_max)) + 0.5)
+        finally:
+            _syncing[0] = False
+
+    ax_10m.callbacks.connect('xlim_changed', _sync_to_1m)
+    ax_1m.callbacks.connect('xlim_changed', _sync_to_10m)
+
+    _sync_to_1m(None)  # initial sync so both charts start aligned
+
+    plt.tight_layout()
     plt.show()
 
 
