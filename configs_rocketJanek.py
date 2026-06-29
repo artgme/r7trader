@@ -17,10 +17,10 @@ PARAMS: dict = {
                     'trail_stop_pct': 0.50, 'stop_loss_pct': 1.00, 'currency': 'EUR', 'tick_size': 0.10},
         },
         'RKLB': {
-            '10m': {'vol_len': 7, 'vol_multiplier': 1.5, 'price_move_pct': 1.4,
-                    'trail_stop_pct': 0.50, 'stop_loss_pct': 1.00, 'currency': 'USD'},
-            '30m': {'vol_len': 5, 'vol_multiplier': 1.5, 'price_move_pct': 0.6,
-                    'trail_stop_pct': 0.50, 'stop_loss_pct': 1.00},
+            '10m': {'vol_len': 8, 'vol_multiplier': 1.8, 'price_move_pct': 1.8,
+                    'trail_stop_pct': 0.80, 'stop_loss_pct': 1.00, 'currency': 'USD'},
+            '30m': {'vol_len': 7, 'vol_multiplier': 1.8, 'price_move_pct': 1.7,
+                    'trail_stop_pct': 0.80, 'stop_loss_pct': 1.00},
         },
 
         # ── Forex (IBKR) ───────────────────────────────────────────────────

@@ -22,8 +22,8 @@ from logging_functions import init_trade_log, make_fill_handler
 CLIENT_ID=79
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = ['QNT', 'RKLB', 'SATL', 'NBIS', 'INTC']
-SYMBOL_CURRENCY = {'QNT': 'USD', 'RKLB': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD'}
+SYMBOLS = ['RKLB', 'QNT', 'SATL', 'NBIS', 'INTC', 'MRVL', 'AMKR', 'NVTS', 'ON', 'AOSL', 'JOBY', 'IONQ', 'BKSY', 'TEAM', 'CRWD', 'SHOP']
+SYMBOL_CURRENCY = {'RKLB': 'USD', 'QNT': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD', 'MRVL':'USD', 'AMKR':'USD', 'NVTS':'USD', 'ON':'USD', 'AOSL':'USD', 'JOBY':'USD', 'IONQ':'USD', 'BKSY':'USD', 'TEAM':'USD', 'CRWD':'USD', 'SHOP':'USD'}
 TIMEFRAME = '10m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
@@ -176,8 +176,8 @@ def main():
 
         vol_len = params.get('vol_len', 10)
 
-        vol_multiplier = params.get('vol_multiplier', 1.5)
-        price_move_pct = params.get('price_move_pct', 1.0)
+        vol_multiplier = params.get('vol_multiplier', 1.8)
+        price_move_pct = params.get('price_move_pct', 1.5)
         trail_stop_pct = params.get('trail_stop_pct', 0.5)
 
         logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}{RESET}")
