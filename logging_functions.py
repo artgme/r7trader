@@ -29,6 +29,31 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
     logger.info('Trade logged: %s %s %s @ %.4f → %s', action, size, symbol, price, position_after)
 
 
+_SIGNAL_CSV_HEADERS = ['timestamp', 'symbol', 'signal', 'volume', 'mean_volume', 'current_pct',
+                       'price_threshold', 'trail_stop_pct', 'green_volume', 'green_price', 'red_price']
+
+
+def init_signal_log(log_path: Path):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    if not log_path.exists():
+        with open(log_path, 'w', newline='') as f:
+            csv.writer(f).writerow(_SIGNAL_CSV_HEADERS)
+
+
+# Usage: log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
+def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: float, debug: dict, flags: list):
+    if not log_path.exists():
+        init_signal_log(log_path)
+    green_volume, green_price, red_price = flags
+    with open(log_path, 'a', newline='') as f:
+        csv.writer(f).writerow([
+            datetime.datetime.now(EXCHANGE_TZ).strftime('%Y-%m-%d %H:%M:%S.%f'),
+            symbol, signal or 'none',
+            debug['volume'], debug['mean_volume'], debug['current_pct'], debug['price_threshold'], trail_stop_loss,
+            green_volume, green_price, red_price,
+        ])
+
+
 def make_fill_handler(log_path: Path, default_symbol: str):
     def _on_fill(trade, fill):
         symbol     = getattr(trade.contract, 'symbol', default_symbol)

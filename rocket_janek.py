@@ -9,6 +9,7 @@ logging.getLogger('ib_insync').setLevel(logging.WARNING)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
+import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -17,7 +18,7 @@ import mplfinance as mpf
 from ibkr import IBKRGateway
 import configs_rocketJanek as cfg
 import time
-from logging_functions import init_trade_log, make_fill_handler
+from logging_functions import init_trade_log, make_fill_handler, init_signal_log, log_signal_csv, EXCHANGE_TZ
 
 CLIENT_ID=79
 
@@ -30,7 +31,9 @@ TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 
-TRADE_LOG = Path('logs/trades_rocket_janek_1007_01.csv')
+LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
+TRADE_LOG = Path(f'logs/trades_rocket_janek_{LOG_SUFFIX}.csv')
+SIGNAL_LOG = Path(f'logs/signals_rocket_janek_{LOG_SUFFIX}.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -166,6 +169,7 @@ def main():
     gw.ib.errorEvent += _on_ibkr_error
     #logging data
     init_trade_log(TRADE_LOG)
+    init_signal_log(SIGNAL_LOG)
     gw.ib.execDetailsEvent += make_fill_handler(TRADE_LOG, '')
 
     def _on_fill(trade, fill):
@@ -224,7 +228,8 @@ def main():
                         continue
 
                     #6. Entry logic
-                    signal, _, trail_stop_loss, _, _ = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    signal, _, trail_stop_loss, debug, flags = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
                     execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
                     last_processed_candle[symbol] = candle_time
 
