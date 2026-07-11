@@ -23,12 +23,14 @@ CLIENT_ID=79
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOLS = ['RKLB', 'QNT', 'SATL', 'NBIS', 'INTC', 'MRVL', 'AMKR', 'NVTS', 'ON', 'AOSL', 'JOBY', 'IONQ', 'BKSY', 'TEAM', 'CRWD', 'SHOP']
+#SYMBOLS = ['AIXA','BESI','SOI','ASML','SIE.DE','IFX','MC.PA','AMS']
 SYMBOL_CURRENCY = {'RKLB': 'USD', 'QNT': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD', 'MRVL':'USD', 'AMKR':'USD', 'NVTS':'USD', 'ON':'USD', 'AOSL':'USD', 'JOBY':'USD', 'IONQ':'USD', 'BKSY':'USD', 'TEAM':'USD', 'CRWD':'USD', 'SHOP':'USD'}
-TIMEFRAME = '10m'
+#SYMBOL_CURRENCY = {'AIXA':'EUR','BESI':'EUR','SOI':'EUR','ASML':'EUR','SIE.DE':'EUR','IFX':'EUR','MC.PA':'EUR','AMS':'EUR'}
+TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 
-TRADE_LOG = Path('logs/trades_rocket_janek_2905_03.csv')
+TRADE_LOG = Path('logs/trades_rocket_janek_1007_01.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -178,7 +180,7 @@ def main():
 
         vol_multiplier = params.get('vol_multiplier', 1.8)
         price_move_pct = params.get('price_move_pct', 1.5)
-        trail_stop_pct = params.get('trail_stop_pct', 0.5)
+        trail_stop_pct = params.get('trail_stop_pct', 1.0)
 
         logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}{RESET}")
 

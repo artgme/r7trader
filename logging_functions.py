@@ -2,8 +2,11 @@ import csv
 import datetime
 import logging
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+EXCHANGE_TZ = ZoneInfo('America/New_York')
 
 _CSV_HEADERS = ['timestamp', 'symbol', 'broker', 'action', 'price', 'size', 'position_after']
 
@@ -20,7 +23,7 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
         init_trade_log(log_path)
     with open(log_path, 'a', newline='') as f:
         csv.writer(f).writerow([
-            datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            datetime.datetime.now(EXCHANGE_TZ).isoformat(),
             symbol, 'ibkr', action, price, size, position_after,
         ])
     logger.info('Trade logged: %s %s %s @ %.4f → %s', action, size, symbol, price, position_after)
