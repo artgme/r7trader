@@ -1,17 +1,17 @@
 timestamp,symbol,broker,action,price,size,position_after
-2026-07-09T10:05:35.747657-04:00,QNT,ibkr,enter_short,75.75,10.0,short
-2026-07-09T10:24:11.073152-04:00,QNT,ibkr,exit_short_trail,74.04,10.0,flat
-2026-07-09T10:35:42.053516-04:00,RKLB,ibkr,enter_short,83.24,10.0,short
-2026-07-09T10:35:46.046971-04:00,NBIS,ibkr,enter_short,216.14,10.0,short
-2026-07-09T10:35:49.049562-04:00,MRVL,ibkr,enter_long,245.09,10.0,long
-2026-07-09T10:35:51.852950-04:00,AMKR,ibkr,enter_long,72.39,10.0,long
-2026-07-09T10:35:54.423583-04:00,NVTS,ibkr,enter_long,14.11,10.0,long
-2026-07-09T10:35:58.051112-04:00,ON,ibkr,enter_long,100.99,10.0,long
-2026-07-09T10:36:01.884656-04:00,CRWD,ibkr,enter_long,196.49,10.0,long
-2026-07-09T10:37:25.913037-04:00,CRWD,ibkr,exit_long_trail,195.71,10.0,flat
-2026-07-09T10:44:29.232890-04:00,NVTS,ibkr,exit_long_trail,14.2,10.0,flat
-2026-07-09T10:46:41.407830-04:00,RKLB,ibkr,exit_short_trail,83.72,10.0,flat
-2026-07-09T10:47:18.768823-04:00,AMKR,ibkr,exit_long_trail,71.64,10.0,flat
-2026-07-09T10:50:05.801882-04:00,MRVL,ibkr,exit_long_trail,247.0,10.0,flat
-2026-07-09T10:53:04.935840-04:00,ON,ibkr,exit_long_trail,101.52,10.0,flat
-2026-07-09T11:25:29.172751-04:00,NBIS,ibkr,exit_short_trail,216.6,10.0,flat
+2026-07-09 10:05:35.747657,QNT,ibkr,enter_short,75.75,10.0,short
+2026-07-09 10:24:11.073152,QNT,ibkr,exit_short_trail,74.04,10.0,flat
+2026-07-09 10:35:42.053516,RKLB,ibkr,enter_short,83.24,10.0,short
+2026-07-09 10:35:46.046971,NBIS,ibkr,enter_short,216.14,10.0,short
+2026-07-09 10:35:49.049562,MRVL,ibkr,enter_long,245.09,10.0,long
+2026-07-09 10:35:51.852950,AMKR,ibkr,enter_long,72.39,10.0,long
+2026-07-09 10:35:54.423583,NVTS,ibkr,enter_long,14.11,10.0,long
+2026-07-09 10:35:58.051112,ON,ibkr,enter_long,100.99,10.0,long
+2026-07-09 10:36:01.884656,CRWD,ibkr,enter_long,196.49,10.0,long
+2026-07-09 10:37:25.913037,CRWD,ibkr,exit_long_trail,195.71,10.0,flat
+2026-07-09 10:44:29.232890,NVTS,ibkr,exit_long_trail,14.2,10.0,flat
+2026-07-09 10:46:41.407830,RKLB,ibkr,exit_short_trail,83.72,10.0,flat
+2026-07-09 10:47:18.768823,AMKR,ibkr,exit_long_trail,71.64,10.0,flat
+2026-07-09 10:50:05.801882,MRVL,ibkr,exit_long_trail,247.0,10.0,flat
+2026-07-09 10:53:04.935840,ON,ibkr,exit_long_trail,101.52,10.0,flat
+2026-07-09 11:25:29.172751,NBIS,ibkr,exit_short_trail,216.6,10.0,flat

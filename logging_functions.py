@@ -23,7 +23,7 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
         init_trade_log(log_path)
     with open(log_path, 'a', newline='') as f:
         csv.writer(f).writerow([
-            datetime.datetime.now(EXCHANGE_TZ).isoformat(),
+            datetime.datetime.now(EXCHANGE_TZ).strftime('%Y-%m-%d %H:%M:%S.%f'),
             symbol, 'ibkr', action, price, size, position_after,
         ])
     logger.info('Trade logged: %s %s %s @ %.4f → %s', action, size, symbol, price, position_after)

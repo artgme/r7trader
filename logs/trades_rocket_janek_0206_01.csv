@@ -1,23 +1,23 @@
 timestamp,symbol,broker,action,price,size,position_after
-2026-07-02T10:13:39.082398-04:00,QNT,ibkr,enter_short,79.87,10.0,short
-2026-07-02T10:13:41.891233-04:00,SATL,ibkr,enter_short,5.97,10.0,short
-2026-07-02T10:13:44.688776-04:00,NBIS,ibkr,enter_short,235.6,10.0,short
-2026-07-02T10:13:47.796242-04:00,AMKR,ibkr,enter_short,79.13,10.0,short
-2026-07-02T10:13:51.030307-04:00,ON,ibkr,enter_short,97.73,10.0,short
-2026-07-02T10:13:54.625691-04:00,TEAM,ibkr,enter_long,83.41,10.0,long
-2026-07-02T10:15:14.163468-04:00,ON,ibkr,exit_short_trail,98.17,10.0,flat
-2026-07-02T10:23:28.430870-04:00,NBIS,ibkr,exit_short_trail,228.87,10.0,flat
-2026-07-02T10:27:27.065438-04:00,TEAM,ibkr,exit_long_trail,83.11,10.0,flat
-2026-07-02T10:31:03.016162-04:00,SATL,ibkr,exit_short_trail,5.85,10.0,flat
-2026-07-02T10:31:24.084768-04:00,AMKR,ibkr,exit_short_trail,76.72,10.0,flat
-2026-07-02T10:39:19.212850-04:00,QNT,ibkr,exit_short_trail,77.46,10.0,flat
-2026-07-02T10:43:59.034625-04:00,RKLB,ibkr,enter_long,101.16,10.0,long
-2026-07-02T10:44:01.675974-04:00,SATL,ibkr,enter_long,5.75,10.0,long
-2026-07-02T10:44:07.034684-04:00,IONQ,ibkr,enter_long,51.21,10.0,long
-2026-07-02T10:44:12.044627-04:00,CRWD,ibkr,enter_long,194.88,10.0,long
-2026-07-02T10:48:35.059922-04:00,IONQ,ibkr,exit_long_trail,50.9,10.0,flat
-2026-07-02T10:48:36.838474-04:00,CRWD,ibkr,exit_long_trail,196.71,10.0,flat
-2026-07-02T10:52:19.085861-04:00,RKLB,ibkr,exit_long_trail,100.5,10.0,flat
-2026-07-02T10:52:27.078725-04:00,SATL,ibkr,exit_long_trail,5.69,10.0,flat
-2026-07-02T15:14:46.078992-04:00,QNT,ibkr,enter_short,73.83,10.0,short
-2026-07-02T15:28:49.163468-04:00,QNT,ibkr,exit_short_trail,74.57,10.0,flat
+2026-07-02 10:13:39.082398,QNT,ibkr,enter_short,79.87,10.0,short
+2026-07-02 10:13:41.891233,SATL,ibkr,enter_short,5.97,10.0,short
+2026-07-02 10:13:44.688776,NBIS,ibkr,enter_short,235.6,10.0,short
+2026-07-02 10:13:47.796242,AMKR,ibkr,enter_short,79.13,10.0,short
+2026-07-02 10:13:51.030307,ON,ibkr,enter_short,97.73,10.0,short
+2026-07-02 10:13:54.625691,TEAM,ibkr,enter_long,83.41,10.0,long
+2026-07-02 10:15:14.163468,ON,ibkr,exit_short_trail,98.17,10.0,flat
+2026-07-02 10:23:28.430870,NBIS,ibkr,exit_short_trail,228.87,10.0,flat
+2026-07-02 10:27:27.065438,TEAM,ibkr,exit_long_trail,83.11,10.0,flat
+2026-07-02 10:31:03.016162,SATL,ibkr,exit_short_trail,5.85,10.0,flat
+2026-07-02 10:31:24.084768,AMKR,ibkr,exit_short_trail,76.72,10.0,flat
+2026-07-02 10:39:19.212850,QNT,ibkr,exit_short_trail,77.46,10.0,flat
+2026-07-02 10:43:59.034625,RKLB,ibkr,enter_long,101.16,10.0,long
+2026-07-02 10:44:01.675974,SATL,ibkr,enter_long,5.75,10.0,long
+2026-07-02 10:44:07.034684,IONQ,ibkr,enter_long,51.21,10.0,long
+2026-07-02 10:44:12.044627,CRWD,ibkr,enter_long,194.88,10.0,long
+2026-07-02 10:48:35.059922,IONQ,ibkr,exit_long_trail,50.9,10.0,flat
+2026-07-02 10:48:36.838474,CRWD,ibkr,exit_long_trail,196.71,10.0,flat
+2026-07-02 10:52:19.085861,RKLB,ibkr,exit_long_trail,100.5,10.0,flat
+2026-07-02 10:52:27.078725,SATL,ibkr,exit_long_trail,5.69,10.0,flat
+2026-07-02 15:14:46.078992,QNT,ibkr,enter_short,73.83,10.0,short
+2026-07-02 15:28:49.163468,QNT,ibkr,exit_short_trail,74.57,10.0,flat

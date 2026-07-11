@@ -23,6 +23,7 @@ CLIENT_ID = 80
 PLIK = 'logs/trades_rocket_janek_1007_01.csv'
 FETCH_AND_PLOT = 1
 TIMEFRAME = '30m'  # big-candle chart timeframe, e.g. '5m', '10m', '30m', '1h'
+EXCHANGE_TZ = ZoneInfo('America/New_York')
 
 # action → (marker, color)
 MARKER_STYLE = {
@@ -42,7 +43,7 @@ def read_trades(filepath: Path, ticker: str) -> list[dict]:
     df = pd.read_csv(filepath)
     df = df.drop_duplicates()
     df = df[df['symbol'] == ticker].copy()
-    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(EXCHANGE_TZ)
     return [
         {
             'date':   row['timestamp'],
@@ -67,7 +68,7 @@ def _parse_timeframe(tf: str) -> pd.Timedelta:
 # Usage: df = fetch_day(gw, date(2026, 6, 29), 'RKLB', 'USD', '10m')
 def fetch_day(gw: IBKRGateway, date: datetime.date, ticker: str, currency: str, timeframe: str) -> pd.DataFrame | None:
     """Fetch the full RTH session for `date`."""
-    end_dt = datetime.datetime.combine(date, datetime.time(23, 59, 59), tzinfo=ZoneInfo('America/New_York'))
+    end_dt = datetime.datetime.combine(date, datetime.time(23, 59, 59), tzinfo=EXCHANGE_TZ)
     contract = gw.make_stock_contract(ticker, currency=currency)
     bars = gw.fetch_historical(contract, duration='1 D', bar_size=timeframe, use_rth=True, end_dt=end_dt)
     if not bars:
@@ -108,7 +109,7 @@ def calc_pnl(trades: list[dict]) -> list[dict]:
 def calc_all_pnl(filepath: Path) -> dict:
     """Return {symbol: cumulative_pnl} for every ticker in the trade log."""
     df = pd.read_csv(filepath).drop_duplicates()
-    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(EXCHANGE_TZ)
     result = {}
     for symbol, group in df.groupby('symbol'):
         trades = [
@@ -171,12 +172,9 @@ def annotate_trades(ax, df: pd.DataFrame, trades: list[dict]) -> None:
         )
 
 
-def fetch_and_plot(ticker: str, currency: str, trades: list[dict], filepath: Path) -> None:
+def fetch_and_plot(ticker: str, currency: str, trades: list[dict], day: datetime.date, timeframe: str = TIMEFRAME) -> None:
     entry_trades = [t for t in trades if t['action'].startswith('enter')]
     exit_trades  = [t for t in trades if t['action'].startswith('exit')]
-
-    first_line = pd.read_csv(filepath, nrows=1)
-    day = pd.to_datetime(first_line['timestamp'].iloc[0], utc=True).tz_convert(ZoneInfo('America/New_York')).date()
 
     gw = IBKRGateway(client_id=CLIENT_ID)
     if not gw.ensure_connected():
@@ -184,19 +182,19 @@ def fetch_and_plot(ticker: str, currency: str, trades: list[dict], filepath: Pat
         return
 
     try:
-        df_big = fetch_day(gw, day, ticker, currency, TIMEFRAME)
+        df_big = fetch_day(gw, day, ticker, currency, timeframe)
         df_1m  = fetch_day(gw, day, ticker, currency, '1m')
     finally:
         gw.disconnect()
 
     if df_big is None or df_big.empty:
-        logger.error('No %s candle data — exiting.', TIMEFRAME)
+        logger.error('No %s candle data — exiting.', timeframe)
         return
     if df_1m is None or df_1m.empty:
         logger.error('No 1m candle data — exiting.')
         return
 
-    big_tf_duration = _parse_timeframe(TIMEFRAME)
+    big_tf_duration = _parse_timeframe(timeframe)
     one_min = pd.Timedelta(minutes=1)
 
     fig = plt.figure(figsize=(14, 14))
@@ -213,7 +211,7 @@ def fetch_and_plot(ticker: str, currency: str, trades: list[dict], filepath: Pat
     if entry_addplots:
         mpf_kwargs['addplot'] = entry_addplots
     mpf.plot(df_big, **mpf_kwargs)
-    ax_big.set_title(f'{TIMEFRAME} — entries')
+    ax_big.set_title(f'{timeframe} — entries')
     annotate_trades(ax_big, df_big, entry_trades)
 
     # Bottom subplot: 1m candles with exit markers
@@ -301,7 +299,9 @@ def main():
     print(f"  {'TOTAL':8s}  {sum(all_pnl.values()):+.2f}")
 
     if trades and FETCH_AND_PLOT:
-        fetch_and_plot(ticker, currency, trades, filepath)
+        first_line = pd.read_csv(filepath, nrows=1)
+        day = pd.to_datetime(first_line['timestamp'].iloc[0]).date()
+        fetch_and_plot(ticker, currency, trades, day)
 
 
 if __name__ == '__main__':

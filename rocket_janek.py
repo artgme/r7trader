@@ -95,7 +95,13 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
     else:
         SIGNAL = None
 
-    return SIGNAL, price, trail_stop_loss
+    green_volume = volume > volume_threshold
+    green_price  = current_pct > price_threshold
+    red_price    = current_pct < -price_threshold
+
+    debug = {'volume': volume, 'mean_volume': mean_volume, 'current_pct': current_pct, 'price_threshold': price_threshold}
+    flags = [green_volume, green_price, red_price]
+    return SIGNAL, price, trail_stop_loss, debug, flags
 
 def round_to_tick(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, 10)
@@ -189,21 +195,6 @@ def main():
         fetch_interval = tf_seconds                        # fetch once per bar
         duration = f'{vol_len * tf_seconds} S'             # enough bars to fill vol_len
 
-        #2. Pobierz dane historyczne z IBKR
-        # df = fetch_data_from_IBKR(gw, SYMBOL, '1 D', TIMEFRAME, use_rth=True, currency=currency_par)
-        # if df is None:
-        #     logger.error('No initial data — market may be closed or pacing violation. Exiting.')
-        #     return
-
-        #2. Inicjalizacja - oblicz indicators
-        # mean_price = df['Close'].mean()
-        # logger.debug(f'Mean closing price for {SYMBOL}: {mean_price:.2f}')
-        # mean_volume = df['Volume'].mean()
-        # logger.debug(f'Mean volume for {SYMBOL}: {mean_volume:.2f}')
-        #3. Wyświetl dane na wykresie
-        # fig, axes = plot_candles_and_mean(df, mean_price, mean_volume)
-        # plt.pause(0.5)  # let the window render before entering the loop
-        # Keep running, periodically verifying the connection is alive.
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
         last_processed_candle = {sym: None for sym in SYMBOLS}
@@ -233,7 +224,7 @@ def main():
                         continue
 
                     #6. Entry logic
-                    signal, _, trail_stop_loss = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    signal, _, trail_stop_loss, _, _ = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
                     execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
                     last_processed_candle[symbol] = candle_time
 

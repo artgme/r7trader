@@ -1,12 +1,12 @@
 timestamp,symbol,broker,action,price,size,position_after
-2026-07-03T03:22:53.266167-04:00,AIXA,ibkr,enter_short,48.19,10.0,short
-2026-07-03T03:22:55.920533-04:00,BESI,ibkr,enter_short,268.1,10.0,short
-2026-07-03T03:22:59.055030-04:00,AMS,ibkr,enter_short,51.04,10.0,short
-2026-07-03T03:26:26.298392-04:00,BESI,ibkr,exit_short_trail,270.4,10.0,flat
-2026-07-03T03:57:04.569803-04:00,AIXA,ibkr,exit_short_trail,48.44,10.0,flat
-2026-07-03T04:11:33.073604-04:00,AMS,ibkr,exit_short_trail,50.84,10.0,flat
-2026-07-03T09:53:18.077044-04:00,BESI,ibkr,enter_long,273.9,10.0,long
-2026-07-03T09:53:21.423303-04:00,IFX,ibkr,enter_long,77.23,10.0,long
-2026-07-03T10:09:25.693257-04:00,BESI,ibkr,exit_long_trail,273.3,10.0,flat
-2026-07-03T10:43:58.293946-04:00,IFX,ibkr,exit_long_trail,77.58,10.0,flat
-2026-07-03T11:23:27.934086-04:00,AMS,ibkr,enter_long,51.16,10.0,long
+2026-07-03 03:22:53.266167,AIXA,ibkr,enter_short,48.19,10.0,short
+2026-07-03 03:22:55.920533,BESI,ibkr,enter_short,268.1,10.0,short
+2026-07-03 03:22:59.055030,AMS,ibkr,enter_short,51.04,10.0,short
+2026-07-03 03:26:26.298392,BESI,ibkr,exit_short_trail,270.4,10.0,flat
+2026-07-03 03:57:04.569803,AIXA,ibkr,exit_short_trail,48.44,10.0,flat
+2026-07-03 04:11:33.073604,AMS,ibkr,exit_short_trail,50.84,10.0,flat
+2026-07-03 09:53:18.077044,BESI,ibkr,enter_long,273.9,10.0,long
+2026-07-03 09:53:21.423303,IFX,ibkr,enter_long,77.23,10.0,long
+2026-07-03 10:09:25.693257,BESI,ibkr,exit_long_trail,273.3,10.0,flat
+2026-07-03 10:43:58.293946,IFX,ibkr,exit_long_trail,77.58,10.0,flat
+2026-07-03 11:23:27.934086,AMS,ibkr,enter_long,51.16,10.0,long

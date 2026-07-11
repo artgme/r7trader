@@ -20,6 +20,7 @@ def main():
     pd.set_option('display.max_rows', None)
     df = fetch_data_from_IBKR(gw, SYMBOL, DURATION, BAR_SIZE, use_rth=USE_RTH, currency=CURRENCY)
     print(df)
+    print(f"iloc[-1]: {df.iloc[-1]}")
 
     gw.disconnect()
 
