@@ -17,9 +17,9 @@ PARAMS: dict = {
                     'trail_stop_pct': 0.50, 'stop_loss_pct': 1.00, 'currency': 'EUR', 'tick_size': 0.10},
         },
         'RKLB': {
-            '10m': {'vol_len': 8, 'vol_multiplier': 1.8, 'price_move_pct': 1.8,
+            '10m': {'vol_len': 8, 'vol_multiplier': 1.5, 'price_move_pct': 1.5,
                     'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50, 'currency': 'USD'},
-            '30m': {'vol_len': 7, 'vol_multiplier': 1.8, 'price_move_pct': 2.5,
+            '30m': {'vol_len': 7, 'vol_multiplier': 1.5, 'price_move_pct': 1.5,
                     'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50},
         },
 

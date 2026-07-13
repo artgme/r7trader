@@ -30,10 +30,12 @@ SYMBOL_CURRENCY = {'RKLB': 'USD', 'QNT': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'I
 TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
+LIVE_TRADING = True
+EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
-TRADE_LOG = Path(f'logs/trades_rocket_janek_{LOG_SUFFIX}.csv')
-SIGNAL_LOG = Path(f'logs/signals_rocket_janek_{LOG_SUFFIX}.csv')
+TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
+SIGNAL_LOG = Path(f'logs/signals_{LOG_SUFFIX}.csv')
 
 RED    = '\033[31m'
 GREEN  = '\033[32m'
@@ -125,6 +127,13 @@ def timeframe_to_seconds(tf: str) -> int:
         return int(tf[:-1]) * 3600
     raise ValueError(f'Unsupported timeframe: {tf}')
 
+# Usage: exchange_opening_time = get_exchange_opening_time(time.time())
+def get_exchange_opening_time(now: float) -> float:
+    """Return today's exchange open (9:30 ET) as a Unix timestamp comparable to time.time()."""
+    now_dt = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ)
+    opening_dt = datetime.datetime.combine(now_dt.date(), EXCHANGE_OPEN_TIME, tzinfo=EXCHANGE_TZ)
+    return opening_dt.timestamp()
+
 def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False, currency: str = 'USD'):
     contract = gw.make_stock_contract(symbol, currency=currency)
     bars = gw.fetch_historical(contract, duration=duration, bar_size=bar_size, use_rth=use_rth)
@@ -210,6 +219,7 @@ def main():
                 break
             #logger.debug('...')
             now = time.time()
+            too_early = now < get_exchange_opening_time(now) + tf_seconds
             #logger.debug(f'tick: now={now:.0f}, last_fetch={last_fetch:.0f}, diff={now - last_fetch:.0f}s')
             if now - last_fetch >= fetch_interval:
                 positions = gw.get_positions()
@@ -230,7 +240,12 @@ def main():
                     #6. Entry logic
                     signal, _, trail_stop_loss, debug, flags = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
                     log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
-                    execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
+                    if not LIVE_TRADING:
+                        logger.debug(f'{YELLOW}{symbol}: LIVE_TRADING is off, skipping entry.{RESET}')
+                    elif too_early:
+                        logger.debug(f'{YELLOW}{symbol}: within {tf_seconds // 60}min warm-up after open, skipping entry.{RESET}')
+                    else:
+                        execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
                     last_processed_candle[symbol] = candle_time
 
                 #7. Print positions
