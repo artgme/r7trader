@@ -69,7 +69,7 @@ def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity:
             fill_timeout=fill_timeout,
         )
 
-def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float) -> tuple:
+def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float, body_ratio_threshold: float) -> tuple:
     #1. Aktualne dane
     last_candle = df.iloc[-2]
     price = last_candle['Close'] #use in stop loss and take profit orders
@@ -89,13 +89,20 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
     
     volume_threshold = mean_volume * vol_multiplier
     price_threshold = mean_abs_change * price_move_pct
-    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}{RESET}')
+
+    # Body-to-range ratio: 1.0 = pure body (strong conviction), 0.0 = pure wick (indecision).
+    candle_body = abs(last_candle['Close'] - last_candle['Open'])
+    candle_range = last_candle['High'] - last_candle['Low']
+    body_ratio = candle_body / candle_range if candle_range > 0 else 0.0
+    green_body = body_ratio > body_ratio_threshold
+
+    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}, body_ratio: {body_ratio:.2f}{RESET}')
     #3. Check conditions for buy/sell signals
-    if volume > volume_threshold and current_pct > price_threshold:
-        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+    if volume > volume_threshold and current_pct > price_threshold and green_body:
+        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f} | body_ratio {body_ratio:.2f} > {body_ratio_threshold:.2f}{RESET}')
         SIGNAL = 'BUY'
-    elif volume > volume_threshold and current_pct < -price_threshold:
-        logger.info(f'{CYAN}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
+    elif volume > volume_threshold and current_pct < -price_threshold and green_body:
+        logger.info(f'{CYAN}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f} | body_ratio {body_ratio:.2f} > {body_ratio_threshold:.2f}{RESET}')
         SIGNAL = 'SELL'
     else:
         SIGNAL = None
@@ -104,8 +111,8 @@ def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, 
     green_price  = current_pct > price_threshold
     red_price    = current_pct < -price_threshold
 
-    debug = {'volume': volume, 'mean_volume': mean_volume, 'current_pct': current_pct, 'price_threshold': price_threshold}
-    flags = [green_volume, green_price, red_price]
+    debug = {'volume': volume, 'mean_volume': mean_volume, 'current_pct': current_pct, 'price_threshold': price_threshold, 'body_ratio': body_ratio}
+    flags = [green_volume, green_price, red_price, green_body]
     return SIGNAL, price, trail_stop_loss, debug, flags
 
 def round_to_tick(price: float, tick: float) -> float:
@@ -200,8 +207,9 @@ def main():
         vol_multiplier = params.get('vol_multiplier', 1.8)
         price_move_pct = params.get('price_move_pct', 1.5)
         trail_stop_pct = params.get('trail_stop_pct', 1.0)
+        body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
 
-        logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}{RESET}")
+        logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}, body_ratio_threshold={body_ratio_threshold}{RESET}")
 
         #2. Calculating timings for fetching data:
         tf_seconds = timeframe_to_seconds(TIMEFRAME)
@@ -238,7 +246,7 @@ def main():
                         continue
 
                     #6. Entry logic
-                    signal, _, trail_stop_loss, debug, flags = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
+                    signal, _, trail_stop_loss, debug, flags = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
                     log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
                     if not LIVE_TRADING:
                         logger.debug(f'{YELLOW}{symbol}: LIVE_TRADING is off, skipping entry.{RESET}')

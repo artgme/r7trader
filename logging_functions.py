@@ -30,7 +30,8 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
 
 
 _SIGNAL_CSV_HEADERS = ['timestamp', 'symbol', 'signal', 'volume', 'mean_volume', 'current_pct',
-                       'price_threshold', 'trail_stop_pct', 'green_volume', 'green_price', 'red_price']
+                       'price_threshold', 'trail_stop_pct', 'body_ratio', 'green_volume', 'green_price',
+                       'red_price', 'green_body']
 
 
 def init_signal_log(log_path: Path):
@@ -44,13 +45,13 @@ def init_signal_log(log_path: Path):
 def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: float, debug: dict, flags: list):
     if not log_path.exists():
         init_signal_log(log_path)
-    green_volume, green_price, red_price = flags
+    green_volume, green_price, red_price, green_body = flags
     with open(log_path, 'a', newline='') as f:
         csv.writer(f).writerow([
             datetime.datetime.now(EXCHANGE_TZ).strftime('%Y-%m-%d %H:%M:%S.%f'),
             symbol, signal or 'none',
             debug['volume'], debug['mean_volume'], debug['current_pct'], debug['price_threshold'], trail_stop_loss,
-            green_volume, green_price, red_price,
+            debug['body_ratio'], green_volume, green_price, red_price, green_body,
         ])
 
 

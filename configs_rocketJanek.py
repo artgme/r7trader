@@ -18,9 +18,9 @@ PARAMS: dict = {
         },
         'RKLB': {
             '10m': {'vol_len': 8, 'vol_multiplier': 1.5, 'price_move_pct': 1.5,
-                    'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50, 'currency': 'USD'},
+                    'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50, 'body_ratio_threshold': 0.5, 'currency': 'USD'},
             '30m': {'vol_len': 7, 'vol_multiplier': 1.5, 'price_move_pct': 1.5,
-                    'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50},
+                    'trail_stop_pct': 1.50, 'stop_loss_pct': 1.50, 'body_ratio_threshold': 0.5},
         },
 
         # ── Forex (IBKR) ───────────────────────────────────────────────────

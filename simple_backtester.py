@@ -94,10 +94,10 @@ def to_marker_trades(trades: list[dict]) -> list[dict]:
 
 
 # Usage: trades, checks = run_backtest(symbol, low_df, high_df, start_dt, timeframe, vol_len,
-#                                       vol_multiplier, price_move_pct, trail_stop_pct, quantity)
+#                                       vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, quantity)
 def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start_dt, timeframe: str,
                   vol_len: int, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float,
-                  quantity: float) -> tuple[list[dict], list[dict]]:
+                  body_ratio_threshold: float, quantity: float) -> tuple[list[dict], list[dict]]:
     """Walk low_df candle-by-candle, calling buy_or_sell() on each closed candle while flat —
     same window shape as the live loop (iloc[-2] = signal candle, iloc[-1] = next candle,
     standing in for the still-forming candle a live fetch would see). On a signal, fills at
@@ -119,8 +119,8 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
         # Same window shape buy_or_sell() expects live: vol_len bars, candle i is iloc[-2]
         # (the signal candle), candle i+1 stands in for the still-forming iloc[-1] candle.
         window = low_df.iloc[i - vol_len + 2: i + 2].copy()
-        signal, _, trail_stop_loss, debug, flags = buy_or_sell(window, vol_multiplier, price_move_pct, trail_stop_pct)
-        green_volume, green_price, red_price = flags
+        signal, _, trail_stop_loss, debug, flags = buy_or_sell(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+        green_volume, green_price, red_price, green_body = flags
         checks.append({
             'symbol': symbol,
             'signal_time': low_df.index[i],
@@ -130,9 +130,11 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
             'current_pct': debug['current_pct'],
             'price_threshold': debug['price_threshold'],
             'trail_stop_pct': trail_stop_loss,
+            'body_ratio': debug['body_ratio'],
             'green_volume': green_volume,
             'green_price': green_price,
             'red_price': red_price,
+            'green_body': green_body,
         })
         if not signal:
             i += 1
@@ -200,9 +202,10 @@ def main():
     vol_multiplier = params.get('vol_multiplier', 1.2)
     price_move_pct = params.get('price_move_pct', 1.1)
     trail_stop_pct = params.get('trail_stop_pct', 1.6)
+    body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
 
     trades, checks = run_backtest(TICKER, low_df, high_df, START_DT, TIMEFRAME, vol_len,
-                                   vol_multiplier, price_move_pct, trail_stop_pct, QUANTITY)
+                                   vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY)
 
     print(f'\n{TICKER} backtest: {START_DT} to {END_DAY}, {TIMEFRAME} signal / 1m exit, {len(trades)} trade(s)\n')
     cumulative = 0.0
@@ -219,7 +222,7 @@ def main():
 
     # Every candle evaluated while flat, whether or not it fired — shows why a signal didn't
     # trigger just as clearly as why one did.
-    print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  {'price_threshold':>16}  {'trail_stop_pct':>15}")
+    print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  {'price_threshold':>16}  {'trail_stop_pct':>15}  {'body_ratio':>11}")
     for i, c in enumerate(checks, 1):
         # Pad the plain text to fixed width first, then wrap in color — ANSI codes would
         # otherwise count toward the f-string width and break column alignment.
@@ -227,8 +230,10 @@ def main():
         volume_str = f"{volume_color}{c['volume']:>10.0f}{RESET}"
         pct_color = GREEN if c['green_price'] else RED if c['red_price'] else WHITE
         pct_str = f"{pct_color}{c['current_pct']:>+11.2f}%{RESET}"
+        body_color = GREEN if c['green_body'] else WHITE
+        body_str = f"{body_color}{c['body_ratio']:>11.2f}{RESET}"
         print(f"  {i:>3}  {str(c['signal_time']):25}  {c['signal']:6}  "
-              f"{volume_str}  {c['mean_volume']:>12.0f}  {pct_str}  {c['price_threshold']:>15.2f}%  {c['trail_stop_pct']:>14.2f}%")
+              f"{volume_str}  {c['mean_volume']:>12.0f}  {pct_str}  {c['price_threshold']:>15.2f}%  {c['trail_stop_pct']:>14.2f}%  {body_str}")
 
     if trades and FETCH_AND_PLOT:
         # fetch_and_plot() plots a single day — fine for a same-day backtest run like this one,
