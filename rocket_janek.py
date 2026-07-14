@@ -23,9 +23,9 @@ from logging_functions import init_trade_log, make_fill_handler, init_signal_log
 CLIENT_ID=79
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = ['RKLB', 'QNT', 'SATL', 'NBIS', 'INTC', 'MRVL', 'AMKR', 'NVTS', 'ON', 'AOSL', 'JOBY', 'IONQ', 'BKSY', 'TEAM', 'CRWD', 'SHOP']
+SYMBOLS = ['RKLB', 'QNT', 'SATL', 'NBIS', 'INTC', 'MRVL', 'AMKR', 'NVTS', 'ON', 'AOSL', 'JOBY', 'IONQ', 'BKSY', 'TEAM', 'CRWD', 'SHOP', 'DELL', 'AMD', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
 #SYMBOLS = ['AIXA','BESI','SOI','ASML','SIE.DE','IFX','MC.PA','AMS']
-SYMBOL_CURRENCY = {'RKLB': 'USD', 'QNT': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD', 'MRVL':'USD', 'AMKR':'USD', 'NVTS':'USD', 'ON':'USD', 'AOSL':'USD', 'JOBY':'USD', 'IONQ':'USD', 'BKSY':'USD', 'TEAM':'USD', 'CRWD':'USD', 'SHOP':'USD'}
+SYMBOL_CURRENCY = {'RKLB': 'USD', 'QNT': 'USD', 'SATL': 'USD', 'NBIS': 'USD', 'INTC':'USD', 'MRVL':'USD', 'AMKR':'USD', 'NVTS':'USD', 'ON':'USD', 'AOSL':'USD', 'JOBY':'USD', 'IONQ':'USD', 'BKSY':'USD', 'TEAM':'USD', 'CRWD':'USD', 'SHOP':'USD', 'DELL':'USD', 'AMD':'USD', 'NVDA':'USD', 'TSLA':'USD', 'AAPL':'USD', 'MSFT':'USD', 'GOOGL':'USD', 'AMZN':'USD', 'META':'USD'}
 #SYMBOL_CURRENCY = {'AIXA':'EUR','BESI':'EUR','SOI':'EUR','ASML':'EUR','SIE.DE':'EUR','IFX':'EUR','MC.PA':'EUR','AMS':'EUR'}
 TIMEFRAME = '30m'
 QUANTITY = 10

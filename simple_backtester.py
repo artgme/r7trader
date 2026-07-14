@@ -19,11 +19,11 @@ from printing_results import fetch_and_plot
 import configs_rocketJanek as cfg
 
 CLIENT_ID = 81
-TICKER = 'RKLB'
+TICKER = 'AAPL'
 CURRENCY = 'USD'
 TIMEFRAME = '30m'
-START_DT = datetime.datetime(2026, 7, 10, 9, 30, tzinfo=ZoneInfo('America/New_York'))
-END_DAY = datetime.date(2026, 7, 10)
+START_DT = datetime.datetime(2026, 7, 13, 9, 30, tzinfo=ZoneInfo('America/New_York'))
+END_DAY = datetime.date(2026, 7, 14)
 QUANTITY = 10
 FETCH_AND_PLOT = 1
 
