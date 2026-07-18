@@ -26,13 +26,14 @@ FOUND_PARAMS_FILE = Path('tuner1_found_params.py')
 # volume (matches what buy_or_sell() actually detects: a big move backed by unusual volume),
 # capped at 8 per sector so Electronic technology/Technology services don't crowd out everything
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
-TICKERS = [
-    'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
-    'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
-    'LITE', 'RBLX', 'CDE', 'DHI', 'ENTG', 'CVNA', 'JHX', 'IREN', 'MWH', 'QXO',
-    'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',
-    'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL',
-]
+TICKERS = ['VOYG']  # tuned one at a time, results reported per ticker
+# TICKERS = [
+#     'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
+#     'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
+#     'LITE', 'RBLX', 'CDE', 'DHI', 'ENTG', 'CVNA', 'JHX', 'IREN', 'MWH', 'QXO',
+#     'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',
+#     'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL',
+# ]
 TIMEFRAME = '30m'
 START_DT = datetime.datetime(2026, 7, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
 END_DAY = datetime.date(2026, 7, 18)
@@ -41,9 +42,9 @@ TOP_N = 10  # how many best combos to print per ticker
 
 # Grid to search — coarse for now, narrow in once a promising region shows up.
 VOL_LEN_RANGE = [5, 7, 10]
-VOL_MULTIPLIER_RANGE = [0.5, 0.7,1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5]
-PRICE_MOVE_PCT_RANGE = [0.5, 0.8, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
-TRAIL_STOP_PCT_RANGE = [1.0, 1.5, 2.0, 2.5, 3.0]
+VOL_MULTIPLIER_RANGE = [0.5, 0.7, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5]
+PRICE_MOVE_PCT_RANGE = [0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5]
+TRAIL_STOP_PCT_RANGE = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
 BODY_RATIO_THRESHOLD_RANGE = [0.3, 0.5, 0.7]
 
 
