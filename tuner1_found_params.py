@@ -1,0 +1,10 @@
+PARAMS: dict = {   'MomentumV8Strategy': {   'QNT': {   '30m': {   'body_ratio_threshold': 0.7,
+                                                    'price_move_pct': 1.5,
+                                                    'trail_stop_pct': 2.0,
+                                                    'vol_len': 7,
+                                                    'vol_multiplier': 3.0}},
+                              'RKLB': {   '30m': {   'body_ratio_threshold': 0.7,
+                                                     'price_move_pct': 2.5,
+                                                     'trail_stop_pct': 2.0,
+                                                     'vol_len': 5,
+                                                     'vol_multiplier': 2.0}}}}
