@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 from ibkr import IBKRGateway
 import configs_rocketJanek as cfg
+import params_lookup
 import time
 from logging_functions import init_trade_log, make_fill_handler
 
@@ -163,7 +164,7 @@ def main():
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
-        params     = cfg.get_params('MomentumV8Strategy', SYMBOL, TIMEFRAME)
+        params     = params_lookup.get_params(cfg.PARAMS, 'MomentumV8Strategy', SYMBOL, TIMEFRAME)
         pd.set_option('display.max_rows', None)
         logger.debug(f'Parameters for {SYMBOL}: {params}')
 

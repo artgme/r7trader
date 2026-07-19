@@ -10,17 +10,20 @@ logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 import datetime
+import importlib
 from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 from ibkr import IBKRGateway
-import configs_rocketJanek as cfg
+import params_lookup
 import time
 from logging_functions import init_trade_log, make_fill_handler, init_signal_log, log_signal_csv, EXCHANGE_TZ
 
 CLIENT_ID=79
+
+CONFIG_MODULE = 'configs_rocketJanek'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOLS = ['RKLB', 'QNT', 'SATL', 'NBIS', 'INTC', 'MRVL', 'AMKR', 'NVTS', 'ON', 'AOSL', 'JOBY', 'IONQ', 'BKSY', 'TEAM', 'CRWD', 'SHOP', 'DELL', 'AMD', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']
@@ -198,7 +201,8 @@ def main():
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
-        params     = cfg.get_params('MomentumV8Strategy', SYMBOLS[0], TIMEFRAME)
+        config     = importlib.import_module(CONFIG_MODULE)
+        params     = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', SYMBOLS[0], TIMEFRAME)
         pd.set_option('display.max_rows', None)
         logger.debug(f'Parameters (shared for all symbols): {params}')
 

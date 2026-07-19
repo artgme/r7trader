@@ -17,6 +17,7 @@ from ibkr import IBKRGateway
 from rocket_janek import buy_or_sell, timeframe_to_seconds, RED, GREEN, WHITE, RESET
 from printing_results import fetch_and_plot
 import configs_rocketJanek as cfg
+import params_lookup
 
 CLIENT_ID = 81
 TICKER = 'AAPL'
@@ -197,7 +198,7 @@ def main():
         return
 
     # Same params lookup as rocket_janek.py's main(): shared across all symbols, sourced from RKLB's config.
-    params = cfg.get_params('MomentumV8Strategy', 'RKLBUUU', TIMEFRAME)
+    params = params_lookup.get_params(cfg.PARAMS, 'MomentumV8Strategy', 'RKLBUUU', TIMEFRAME)
     vol_len = params.get('vol_len', 10)
     vol_multiplier = params.get('vol_multiplier', 1.2)
     price_move_pct = params.get('price_move_pct', 1.1)

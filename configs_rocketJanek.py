@@ -36,33 +36,3 @@ PARAMS: dict = {
         },
     },
 }
-
-
-_TF_ORDER = ['1m', '5m', '10m', '15m', '30m', '45m', '1h', '2h', '4h', '1d']
-
-
-
-#   symbols    = get_symbols('MomentumV8Strategy')           # ['SOL/USD', 'RKLB', ...]
-def get_symbols(strategy_name: str) -> list[str]:
-    """Return the sorted list of symbols configured for the given strategy."""
-    return sorted(PARAMS.get(strategy_name, {}).keys())
-
-
-#   timeframes = get_timeframes('MomentumV8Strategy', 'RKLB') # ['10m', '30m', ...]
-def get_timeframes(strategy_name: str, symbol: str) -> list[str]:
-    """Return timeframes for the given strategy/symbol, in natural order."""
-    defined = set(PARAMS.get(strategy_name, {}).get(symbol, {}).keys())
-    return [tf for tf in _TF_ORDER if tf in defined]
-
-
-#   params     = get_params('MomentumV8Strategy', 'RKLB', '10m') # {'vol_len': 10, ...}
-def get_params(strategy_name: str, symbol: str, timeframe: str) -> dict:
-    """
-    Return the parameter dict for the given strategy / symbol / timeframe combo.
-    Returns an empty dict if the combo is not defined — the strategy will then
-    use its own built-in default values.
-    """
-    return (PARAMS
-            .get(strategy_name, {})
-            .get(symbol, {})
-            .get(timeframe, {}))
