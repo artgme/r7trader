@@ -1,0 +1,27 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-07-22 10:20:28.022380,LITE,ibkr,enter_long,837.0,10.0,long
+2026-07-22 10:20:32.232131,AMD,ibkr,enter_long,551.0,10.0,long
+2026-07-22 10:20:36.368090,MXL,ibkr,enter_long,88.1,10.0,long
+2026-07-22 10:20:39.078628,NBIS,ibkr,enter_long,224.49,10.0,long
+2026-07-22 10:20:43.018706,DELL,ibkr,enter_long,447.9,10.0,long
+2026-07-22 10:20:46.850164,MRVL,ibkr,enter_long,210.49,10.0,long
+2026-07-22 10:20:51.874648,ARWR,ibkr,enter_long,94.6,10.0,long
+2026-07-22 10:23:54.197685,ARWR,ibkr,exit_long_trail,93.01,10.0,flat
+2026-07-22 10:24:03.189798,DELL,ibkr,exit_long_trail,446.15,10.0,flat
+2026-07-22 11:30:26.584540,LITE,ibkr,exit_long_trail,846.01,10.0,flat
+2026-07-22 11:51:29.051507,SIMO,ibkr,enter_long,286.77,10.0,long
+2026-07-22 12:15:11.062714,MXL,ibkr,exit_long_trail,89.32,10.0,flat
+2026-07-22 12:51:58.039776,RCL,ibkr,enter_long,287.51,10.0,long
+2026-07-22 12:52:07.061400,IVZ,ibkr,enter_long,30.51,10.0,long
+2026-07-22 15:04:53.519045,RCL,ibkr,exit_long_trail,285.38,10.0,flat
+2026-07-22 15:22:58.034053,CIEN,ibkr,enter_long,401.8,8.0,long
+2026-07-22 15:23:00.030138,CIEN,ibkr,enter_long,401.8,2.0,long
+2026-07-22 15:23:06.912962,UAL,ibkr,enter_short,116.5,10.0,short
+2026-07-22 15:33:06.768489,UAL,ibkr,exit_short_trail,116.85,10.0,flat
+2026-07-22 15:33:15.391491,NBIS,ibkr,exit_long_trail,221.75,10.0,flat
+2026-07-22 15:39:06.307853,MRVL,ibkr,exit_long_trail,211.03,10.0,flat
+2026-07-22 15:41:45.329444,CIEN,ibkr,exit_long_trail,399.76,10.0,flat
+2026-07-22 15:53:20.589009,UAL,ibkr,enter_short,117.3,10.0,short
+2026-07-22 15:53:27.717124,CVNA,ibkr,enter_short,62.98,10.0,short
+2026-07-22 15:55:17.557336,AMD,ibkr,exit_long_trail,550.4,10.0,flat
+2026-07-22 15:58:29.089205,CVNA,ibkr,exit_short_trail,62.95,10.0,flat

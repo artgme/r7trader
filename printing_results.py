@@ -20,7 +20,7 @@ import mplfinance as mpf
 from ibkr import IBKRGateway
 
 CLIENT_ID = 80
-PLIK = 'logs/trades_20260721_0139_30m.csv'
+PLIK = 'logs/trades_20260722_0145_30m.csv'
 FETCH_AND_PLOT = 1
 TIMEFRAME = '30m'  # big-candle chart timeframe, e.g. '5m', '10m', '30m', '1h'
 EXCHANGE_TZ = ZoneInfo('America/New_York')
