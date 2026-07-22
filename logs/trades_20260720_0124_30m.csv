@@ -1,0 +1,21 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-07-20 10:29:51.023367,LITE,ibkr,enter_long,800.87,10.0,long
+2026-07-20 10:29:55.086514,AMD,ibkr,enter_short,515.57,10.0,short
+2026-07-20 10:29:57.871753,MPWR,ibkr,enter_long,1364.57,10.0,long
+2026-07-20 10:30:15.631133,INTC,ibkr,enter_long,99.38,10.0,long
+2026-07-20 10:30:22.060032,DHI,ibkr,enter_short,146.46,10.0,short
+2026-07-20 10:30:25.628493,RIOT,ibkr,enter_long,19.3,10.0,long
+2026-07-20 10:30:28.500841,IREN,ibkr,enter_long,39.06,10.0,long
+2026-07-20 10:31:16.200484,MPWR,ibkr,exit_long_trail,1358.07,10.0,flat
+2026-07-20 10:32:37.095012,INTC,ibkr,exit_long_trail,98.75,10.0,flat
+2026-07-20 10:32:39.031888,LITE,ibkr,exit_long_trail,793.89,10.0,flat
+2026-07-20 10:35:35.068111,AMD,ibkr,exit_short_trail,517.86,10.0,flat
+2026-07-20 10:37:04.369024,RIOT,ibkr,exit_long_trail,19.02,10.0,flat
+2026-07-20 10:38:18.929443,IREN,ibkr,exit_long_trail,38.53,10.0,flat
+2026-07-20 11:12:26.065271,DHI,ibkr,exit_short_trail,146.41,10.0,flat
+2026-07-20 12:01:02.482167,ALK,ibkr,enter_long,46.11,10.0,long
+2026-07-20 12:01:08.292810,JOBY,ibkr,enter_long,7.48,10.0,long
+2026-07-20 13:31:51.545882,VSH,ibkr,enter_short,37.43,10.0,short
+2026-07-20 14:02:04.119620,ARWR,ibkr,enter_long,72.22,10.0,long
+2026-07-20 15:14:46.030447,ALK,ibkr,exit_long_trail,46.03,10.0,flat
+2026-07-20 15:15:52.022202,ARWR,ibkr,exit_long_trail,71.26,10.0,flat
