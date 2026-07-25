@@ -209,23 +209,11 @@ def main():
     try:
         #1. Pobiera paramtry strategii z configs.py:
         config     = importlib.import_module(CONFIG_MODULE)
-        params     = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', SYMBOLS[0], TIMEFRAME)
         pd.set_option('display.max_rows', None)
-        logger.debug(f'Parameters (shared for all symbols): {params}')
-
-        vol_len = params.get('vol_len', 10)
-
-        vol_multiplier = params.get('vol_multiplier', 1.8)
-        price_move_pct = params.get('price_move_pct', 1.5)
-        trail_stop_pct = params.get('trail_stop_pct', 1.0)
-        body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
-
-        logger.debug(f"{YELLOW}vol_len = {vol_len}, vol_multiplier = {vol_multiplier}, price_move_pct = {price_move_pct}, trail_stop_pct={trail_stop_pct}, body_ratio_threshold={body_ratio_threshold}{RESET}")
 
         #2. Calculating timings for fetching data:
         tf_seconds = timeframe_to_seconds(TIMEFRAME)
         fetch_interval = tf_seconds                        # fetch once per bar
-        duration = f'{vol_len * tf_seconds} S'             # enough bars to fill vol_len
 
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
@@ -243,6 +231,16 @@ def main():
             if now - last_fetch >= fetch_interval:
                 positions = gw.get_positions()
                 for symbol in SYMBOLS:
+                    #3. Parametry per-symbol — każdy symbol ma własną strojoną konfigurację:
+                    params = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', symbol, TIMEFRAME)
+                    vol_len = params.get('vol_len', 10)
+                    vol_multiplier = params.get('vol_multiplier', 1.8)
+                    price_move_pct = params.get('price_move_pct', 1.5)
+                    trail_stop_pct = params.get('trail_stop_pct', 1.0)
+                    body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
+                    duration = f'{vol_len * tf_seconds} S'          # enough bars to fill vol_len
+                    logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, vol_multiplier={vol_multiplier}, price_move_pct={price_move_pct}, trail_stop_pct={trail_stop_pct}, body_ratio_threshold={body_ratio_threshold}{RESET}")
+
                     #4. Ściągnij dane z IBKR
                     df = fetch_data_from_IBKR(gw, symbol, duration, TIMEFRAME, use_rth=True, currency=SYMBOL_CURRENCY[symbol])
                     if df is None:
