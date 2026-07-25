@@ -14,7 +14,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from ibkr import IBKRGateway
-from rocket_janek import buy_or_sell, timeframe_to_seconds, RED, GREEN, WHITE, RESET
+from rocket_janek import timeframe_to_seconds, RED, GREEN, WHITE, RESET
+from signal_checks import check_vol_price_body
 from printing_results import fetch_and_plot
 import configs_rocketJanek as cfg
 import params_lookup
@@ -99,7 +100,7 @@ def to_marker_trades(trades: list[dict]) -> list[dict]:
 def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start_dt, timeframe: str,
                   vol_len: int, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float,
                   body_ratio_threshold: float, quantity: float) -> tuple[list[dict], list[dict]]:
-    """Walk low_df candle-by-candle, calling buy_or_sell() on each closed candle while flat —
+    """Walk low_df candle-by-candle, calling check_vol_price_body() on each closed candle while flat —
     same window shape as the live loop (iloc[-2] = signal candle, iloc[-1] = next candle,
     standing in for the still-forming candle a live fetch would see). On a signal, fills at
     the next available 1m price and scans high_df for a trailing-stop exit before resuming.
@@ -117,10 +118,10 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
             i += 1
             continue
 
-        # Same window shape buy_or_sell() expects live: vol_len bars, candle i is iloc[-2]
+        # Same window shape check_vol_price_body() expects live: vol_len bars, candle i is iloc[-2]
         # (the signal candle), candle i+1 stands in for the still-forming iloc[-1] candle.
         window = low_df.iloc[i - vol_len + 2: i + 2].copy()
-        signal, _, trail_stop_loss, debug, flags = buy_or_sell(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+        signal, _, trail_stop_loss, debug, flags = check_vol_price_body(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
         green_volume, green_price, red_price, green_body = flags
         checks.append({
             'symbol': symbol,

@@ -1,0 +1,37 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_0da478c2 [label="0: (global)()" name="rocket_janek::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_00447e3b [label="82: buy_or_sell()" name="rocket_janek::buy_or_sell" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_05dfda21 [label="58: execute_trade()" name="rocket_janek::execute_trade" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_b5eef98e [label="154: fetch_data_from_IBKR()" name="rocket_janek::fetch_data_from_IBKR" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_c56e4d43 [label="148: get_exchange_opening_time()" name="rocket_janek::get_exchange_opening_time" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_839e1a97 [label="182: main()" name="rocket_janek::main" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_f4ec7410 [label="140: timeframe_to_seconds()" name="rocket_janek::timeframe_to_seconds" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_0da478c2 -> node_839e1a97 [color="#56B4E9" penwidth="2"];
+node_839e1a97 -> node_00447e3b [color="#CC79A7" penwidth="2"];
+node_839e1a97 -> node_05dfda21 [color="#CC79A7" penwidth="2"];
+node_839e1a97 -> node_b5eef98e [color="#CC79A7" penwidth="2"];
+node_839e1a97 -> node_c56e4d43 [color="#CC79A7" penwidth="2"];
+node_839e1a97 -> node_f4ec7410 [color="#CC79A7" penwidth="2"];
+subgraph cluster_cc84e3e8 {
+    node_05dfda21 node_00447e3b node_f4ec7410 node_c56e4d43 node_b5eef98e node_839e1a97 node_0da478c2;
+    label="File: rocket_janek";
+    name="rocket_janek";
+    style="filled";
+    graph[style=dotted];
+};
+}

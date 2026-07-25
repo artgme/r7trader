@@ -5,7 +5,8 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - [%(filename)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
-logging.getLogger('rocket_janek').setLevel(logging.WARNING)  # buy_or_sell() logs INFO per call — way too noisy across a grid sweep
+logging.getLogger('rocket_janek').setLevel(logging.WARNING)
+logging.getLogger('signal_checks').setLevel(logging.WARNING)  # check_vol_price_body() logs INFO per call — way too noisy across a grid sweep
 
 import ast
 import datetime
@@ -23,7 +24,7 @@ from backtester_alpaca import fetch_range, run_backtest, ALPACA_API_KEY, ALPACA_
 FOUND_PARAMS_FILE = Path('tuner1_found_params.py')
 
 # Top 50 from Potential_2026-07-18_81690.csv, ranked by |1-day price change %| x relative
-# volume (matches what buy_or_sell() actually detects: a big move backed by unusual volume),
+# volume (matches what check_vol_price_body() actually detects: a big move backed by unusual volume),
 # capped at 8 per sector so Electronic technology/Technology services don't crowd out everything
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
 TICKERS = ['VOYG']  # tuned one at a time, results reported per ticker

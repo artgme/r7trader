@@ -1,0 +1,105 @@
+digraph G {
+concentrate=true;
+splines="ortho";
+rankdir="LR";
+subgraph legend{
+    rank = min;
+    label = "legend";
+    Legend [shape=none, margin=0, label = <
+        <table cellspacing="0" cellpadding="0" border="1"><tr><td>Code2flow Legend</td></tr><tr><td>
+        <table cellspacing="0">
+        <tr><td>Regular function</td><td width="50px" bgcolor='#cccccc'></td></tr>
+        <tr><td>Trunk function (nothing calls this)</td><td bgcolor='#966F33'></td></tr>
+        <tr><td>Leaf function (this calls nothing else)</td><td bgcolor='#6db33f'></td></tr>
+        <tr><td>Function call</td><td><font color='black'>&#8594;</font></td></tr>
+        </table></td></tr></table>
+        >];
+}node_451a4147 [label="0: (global)()" name="ibkr::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_218acae8 [label="41: __init__()" name="ibkr::IBKRGateway.__init__" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_bb8052bf [label="49: connect()" name="ibkr::IBKRGateway.connect" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_57c8de61 [label="58: disconnect()" name="ibkr::IBKRGateway.disconnect" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_ec8ff500 [label="70: ensure_connected()" name="ibkr::IBKRGateway.ensure_connected" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_29697c34 [label="107: fetch_historical()" name="ibkr::IBKRGateway.fetch_historical" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_cfd7c245 [label="148: get_positions()" name="ibkr::IBKRGateway.get_positions" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_3c0e3bdd [label="88: make_stock_contract()" name="ibkr::IBKRGateway.make_stock_contract" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_8ca0dbe0 [label="157: place_bracket_trailing()" name="ibkr::IBKRGateway.place_bracket_trailing" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_11b68b2a [label="37: init_signal_log()" name="logging_functions::init_signal_log" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_7b584cb3 [label="14: init_trade_log()" name="logging_functions::init_trade_log" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_350bf907 [label="45: log_signal_csv()" name="logging_functions::log_signal_csv" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_55aced54 [label="21: log_trade_csv()" name="logging_functions::log_trade_csv" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_f38b9e5f [label="58: make_fill_handler()" name="logging_functions::make_fill_handler" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_a579ac7e [label="18: get_params()" name="params_lookup::get_params" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_1ce55f81 [label="0: (global)()" name="rocket_janek::(global)" shape="rect" style="rounded,filled" fillcolor="#966F33" ];
+node_590c27d8 [label="82: buy_or_sell()" name="rocket_janek::buy_or_sell" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_3cf5dbd6 [label="58: execute_trade()" name="rocket_janek::execute_trade" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_afe13270 [label="154: fetch_data_from_IBKR()" name="rocket_janek::fetch_data_from_IBKR" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_969520ec [label="148: get_exchange_opening_time()" name="rocket_janek::get_exchange_opening_time" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_da5d6647 [label="182: main()" name="rocket_janek::main" shape="rect" style="rounded,filled" fillcolor="#cccccc" ];
+node_14c20c7a [label="140: timeframe_to_seconds()" name="rocket_janek::timeframe_to_seconds" shape="rect" style="rounded,filled" fillcolor="#6db33f" ];
+node_451a4147 -> node_218acae8 [color="#CC79A7" penwidth="2"];
+node_451a4147 -> node_57c8de61 [color="#CC79A7" penwidth="2"];
+node_451a4147 -> node_cfd7c245 [color="#CC79A7" penwidth="2"];
+node_bb8052bf -> node_bb8052bf [color="#CC79A7" penwidth="2"];
+node_57c8de61 -> node_57c8de61 [color="#E69F00" penwidth="2"];
+node_ec8ff500 -> node_bb8052bf [color="#000000" penwidth="2"];
+node_350bf907 -> node_11b68b2a [color="#CC79A7" penwidth="2"];
+node_55aced54 -> node_7b584cb3 [color="#F0E442" penwidth="2"];
+node_f38b9e5f -> node_55aced54 [color="#CC79A7" penwidth="2"];
+node_1ce55f81 -> node_da5d6647 [color="#E69F00" penwidth="2"];
+node_3cf5dbd6 -> node_8ca0dbe0 [color="#D55E00" penwidth="2"];
+node_3cf5dbd6 -> node_8ca0dbe0 [color="#D55E00" penwidth="2"];
+node_afe13270 -> node_29697c34 [color="#000000" penwidth="2"];
+node_afe13270 -> node_3c0e3bdd [color="#000000" penwidth="2"];
+node_da5d6647 -> node_218acae8 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_57c8de61 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_ec8ff500 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_ec8ff500 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_cfd7c245 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_cfd7c245 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_3c0e3bdd [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_11b68b2a [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_7b584cb3 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_350bf907 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_f38b9e5f [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_a579ac7e [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_590c27d8 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_3cf5dbd6 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_afe13270 [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_969520ec [color="#CC79A7" penwidth="2"];
+node_da5d6647 -> node_14c20c7a [color="#CC79A7" penwidth="2"];
+subgraph cluster_3cda1271 {
+    node_451a4147;
+    label="File: ibkr";
+    name="ibkr";
+    style="filled";
+    graph[style=dotted];
+    subgraph cluster_70a54bcd {
+        node_218acae8 node_bb8052bf node_57c8de61 node_ec8ff500 node_3c0e3bdd node_29697c34 node_cfd7c245 node_8ca0dbe0;
+        label="Class: IBKRGateway";
+        name="IBKRGateway";
+        style="filled";
+        graph[style=dotted];
+    };
+};
+subgraph cluster_453b657e {
+    node_7b584cb3 node_55aced54 node_11b68b2a node_350bf907 node_f38b9e5f;
+    label="File: logging_functions";
+    name="logging_functions";
+    style="filled";
+    graph[style=dotted];
+};
+subgraph cluster_a05ee1d4 {
+    node_a579ac7e;
+    label="File: params_lookup";
+    name="params_lookup";
+    style="filled";
+    graph[style=dotted];
+};
+subgraph cluster_773249be {
+    node_3cf5dbd6 node_590c27d8 node_14c20c7a node_969520ec node_afe13270 node_da5d6647 node_1ce55f81;
+    label="File: rocket_janek";
+    name="rocket_janek";
+    style="filled";
+    graph[style=dotted];
+};
+}
