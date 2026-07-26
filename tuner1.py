@@ -20,6 +20,7 @@ import numpy as np
 from alpaca.data.historical import StockHistoricalDataClient
 
 from backtester_alpaca import fetch_range, run_backtest, ALPACA_API_KEY, ALPACA_SECRET_KEY
+from logging_functions import log_tuning_csv, EXCHANGE_TZ
 
 FOUND_PARAMS_FILE = Path('tuner1_found_params.py')
 
@@ -27,7 +28,7 @@ FOUND_PARAMS_FILE = Path('tuner1_found_params.py')
 # volume (matches what check_vol_price_body() actually detects: a big move backed by unusual volume),
 # capped at 8 per sector so Electronic technology/Technology services don't crowd out everything
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
-TICKERS = ['VOYG']  # tuned one at a time, results reported per ticker
+TICKERS = ['VOYG', 'ISRG','ASTS','NXT','ALAB']  # tuned one at a time, results reported per ticker
 # TICKERS = [
 #     'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
 #     'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
@@ -36,10 +37,13 @@ TICKERS = ['VOYG']  # tuned one at a time, results reported per ticker
 #     'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL',
 # ]
 TIMEFRAME = '30m'
-START_DT = datetime.datetime(2026, 7, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
-END_DAY = datetime.date(2026, 7, 18)
+START_DT = datetime.datetime(2026, 5, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
+END_DAY = datetime.date(2026, 7, 26)
 QUANTITY = 10
 TOP_N = 10  # how many best combos to print per ticker
+
+LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
+TUNING_LOG = Path(f'tuning_logs/tuning_{LOG_SUFFIX}.csv')
 
 # Grid to search — coarse for now, narrow in once a promising region shows up.
 VOL_LEN_RANGE = [5, 7, 10]
@@ -211,6 +215,7 @@ def main():
             continue
 
         results = tune_ticker(ticker, low_df, high_df)
+        log_tuning_csv(TUNING_LOG, ticker, TIMEFRAME, START_DT, END_DAY, results)
         results.sort(key=lambda r: r['total_pnl'], reverse=True)
         print_results_table(ticker, results)
         save_best_params(ticker, results)

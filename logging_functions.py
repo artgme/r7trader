@@ -55,6 +55,57 @@ def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: fl
         ])
 
 
+_TUNING_CSV_HEADERS = ['tuned_at', 'ticker', 'timeframe', 'run_start', 'run_end',
+                       'vol_len', 'vol_multiplier', 'price_move_pct', 'trail_stop_pct', 'body_ratio_threshold',
+                       'trade_count', 'win_rate', 'total_pnl', 'expectancy']
+
+
+def init_tuning_log(log_path: Path):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    if not log_path.exists():
+        with open(log_path, 'w', newline='') as f:
+            csv.writer(f).writerow(_TUNING_CSV_HEADERS)
+
+
+# Usage: log_tuning_csv(TUNING_LOG, 'RKLB', '30m', START_DT, END_DAY, results)
+def log_tuning_csv(log_path: Path, ticker: str, timeframe: str, run_start, run_end, results: list[dict]):
+    """Appends one row per grid combo in `results` (the list of dicts tune_ticker() returns).
+    Safe to call once per ticker as each finishes — a run killed partway through still leaves
+    every completed ticker's rows on disk."""
+    if not log_path.exists():
+        init_tuning_log(log_path)
+    tuned_at = datetime.datetime.now(EXCHANGE_TZ).strftime('%Y-%m-%d %H:%M:%S.%f')
+    with open(log_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        for r in results:
+            writer.writerow([
+                tuned_at, ticker, timeframe, run_start, run_end,
+                r['vol_len'], r['vol_multiplier'], r['price_move_pct'], r['trail_stop_pct'], r['body_ratio_threshold'],
+                r['trade_count'], r['win_rate'], r['total_pnl'], r['expectancy'],
+            ])
+
+
+# Usage: results_by_ticker = load_tuning_log(Path('tuning_logs/tuning_30m_20260726_1400.csv'))
+def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
+    """Reconstructs the results_by_ticker shape tuner1.py builds in-memory, so plot_3d() and
+    print_ticker_ranking() work unmodified on a log reloaded in a later session."""
+    results_by_ticker: dict[str, list[dict]] = {}
+    with open(log_path, newline='') as f:
+        for row in csv.DictReader(f):
+            results_by_ticker.setdefault(row['ticker'], []).append({
+                'vol_len': int(row['vol_len']),
+                'vol_multiplier': float(row['vol_multiplier']),
+                'price_move_pct': float(row['price_move_pct']),
+                'trail_stop_pct': float(row['trail_stop_pct']),
+                'body_ratio_threshold': float(row['body_ratio_threshold']),
+                'trade_count': int(row['trade_count']),
+                'win_rate': float(row['win_rate']),
+                'total_pnl': float(row['total_pnl']),
+                'expectancy': float(row['expectancy']),
+            })
+    return results_by_ticker
+
+
 def make_fill_handler(log_path: Path, default_symbol: str):
     def _on_fill(trade, fill):
         symbol     = getattr(trade.contract, 'symbol', default_symbol)

@@ -13,8 +13,8 @@ PARAMS: dict = {   'MomentumV8Strategy': {   'AAPL': {   '30m': {   'body_ratio_
                                                      'trail_stop_pct': 2.0,
                                                      'vol_len': 5,
                                                      'vol_multiplier': 2.0}},
-                              'VOYG': {   '30m': {   'body_ratio_threshold': 0.3,
+                              'VOYG': {   '30m': {   'body_ratio_threshold': 0.7,
                                                      'price_move_pct': 3.0,
-                                                     'trail_stop_pct': 2.5,
+                                                     'trail_stop_pct': 3.0,
                                                      'vol_len': 7,
-                                                     'vol_multiplier': 3.0}}}}
+                                                     'vol_multiplier': 2.5}}}}
