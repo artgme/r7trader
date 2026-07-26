@@ -1,6 +1,15 @@
+import asyncio
 import logging
 import time
 import uuid
+
+# eventkit (an ib_insync dependency) grabs an event loop at import time; Python 3.14 no
+# longer auto-creates one on the main thread if none exists, so it raises RuntimeError.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 from ib_insync import IB, Stock, Forex, Crypto, MarketOrder, LimitOrder, Order, Contract
 
 RED    = '\033[31m'

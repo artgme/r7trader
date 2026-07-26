@@ -18,7 +18,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
-from rocket_janek import timeframe_to_seconds, RED, GREEN, WHITE, RESET
+from common import timeframe_to_seconds, RED, GREEN, WHITE, RESET
 from signal_checks import check_vol_price_body
 import configs_rocketJanek as cfg
 

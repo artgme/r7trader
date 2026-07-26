@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from ibkr import IBKRGateway
-from rocket_janek import timeframe_to_seconds, RED, GREEN, WHITE, RESET
+from common import timeframe_to_seconds, RED, GREEN, WHITE, RESET
 from signal_checks import check_vol_price_body
 from printing_results import fetch_and_plot
 import configs_rocketJanek as cfg

@@ -21,6 +21,7 @@ import params_lookup
 from signal_checks import check_vol_price_body
 import time
 from logging_functions import init_trade_log, make_fill_handler, init_signal_log, log_signal_csv, EXCHANGE_TZ
+from common import RED, GREEN, YELLOW, BLUE, CYAN, WHITE, RESET, timeframe_to_seconds
 
 CLIENT_ID=79
 
@@ -47,14 +48,6 @@ EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
 TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
 SIGNAL_LOG = Path(f'logs/signals_{LOG_SUFFIX}.csv')
-
-RED    = '\033[31m'
-GREEN  = '\033[32m'
-YELLOW = '\033[33m'
-BLUE   = '\033[34m'
-CYAN   = '\033[36m'
-WHITE  = '\033[37m'
-RESET  = '\033[0m'
 
 def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, trail_stop_loss: float, fill_timeout: float, positions: list):
     if not signal:
@@ -91,13 +84,6 @@ def get_tick_size(price: float, currency: str) -> float:
     if price < 500:  return 0.10
     if price < 1000: return 0.50
     return 1.00
-
-def timeframe_to_seconds(tf: str) -> int:
-    if tf.endswith('m'):
-        return int(tf[:-1]) * 60
-    if tf.endswith('h'):
-        return int(tf[:-1]) * 3600
-    raise ValueError(f'Unsupported timeframe: {tf}')
 
 # Usage: exchange_opening_time = get_exchange_opening_time(time.time())
 def get_exchange_opening_time(now: float) -> float:
