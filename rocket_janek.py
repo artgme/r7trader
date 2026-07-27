@@ -25,7 +25,7 @@ from common import RED, GREEN, YELLOW, BLUE, CYAN, WHITE, RESET, timeframe_to_se
 
 CLIENT_ID=79
 
-CONFIG_MODULE = 'tuner1_found_params2'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
+CONFIG_MODULE = 'tuner1_found_params3'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOLS = [

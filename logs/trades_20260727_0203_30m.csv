@@ -1,0 +1,25 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-07-27 10:07:51.050597,CIEN,ibkr,enter_long,373.4,10.0,long
+2026-07-27 10:30:30.547256,CIEN,ibkr,exit_long_trail,366.01,10.0,flat
+2026-07-27 10:38:04.078549,LITE,ibkr,enter_short,706.22,10.0,short
+2026-07-27 10:38:07.578630,CIEN,ibkr,enter_short,363.03,10.0,short
+2026-07-27 10:38:17.300373,MRNA,ibkr,enter_long,55.66,10.0,long
+2026-07-27 10:38:22.056504,RBLX,ibkr,enter_short,46.01,10.0,short
+2026-07-27 10:50:16.233413,LITE,ibkr,exit_short_trail,714.93,10.0,flat
+2026-07-27 10:52:42.064117,CIEN,ibkr,exit_short_trail,369.28,10.0,flat
+2026-07-27 10:59:44.859333,RBLX,ibkr,exit_short_trail,46.84,10.0,flat
+2026-07-27 11:08:27.446486,AMAT,ibkr,enter_short,507.4,10.0,short
+2026-07-27 11:08:30.518834,ALAB,ibkr,enter_short,276.96,10.0,short
+2026-07-27 11:08:36.442758,STX,ibkr,enter_short,804.17,10.0,short
+2026-07-27 11:08:38.991606,CIEN,ibkr,enter_short,369.58,10.0,short
+2026-07-27 11:08:44.055929,DELL,ibkr,enter_short,421.02,10.0,short
+2026-07-27 11:08:49.387808,VSH,ibkr,enter_short,35.95,10.0,short
+2026-07-27 12:04:07.058761,VSH,ibkr,exit_short_trail,35.99,10.0,flat
+2026-07-27 12:09:18.029073,RBLX,ibkr,enter_long,48.59,10.0,long
+2026-07-27 12:12:21.031482,ALAB,ibkr,exit_short_trail,276.27,10.0,flat
+2026-07-27 12:25:20.217054,DELL,ibkr,exit_short_trail,427.5,10.0,flat
+2026-07-27 12:25:21.098333,AMAT,ibkr,exit_short_trail,508.84,10.0,flat
+2026-07-27 12:25:21.272508,STX,ibkr,exit_short_trail,816.29,10.0,flat
+2026-07-27 13:09:35.131598,AMAT,ibkr,enter_long,504.11,10.0,long
+2026-07-27 13:27:37.933009,MRNA,ibkr,exit_long_trail,55.65,10.0,flat
+2026-07-27 15:58:14.978153,CIEN,ibkr,exit_short_trail,376.31,10.0,flat
