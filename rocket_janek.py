@@ -43,6 +43,7 @@ TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
+FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
@@ -197,6 +198,7 @@ def main():
 
                     #6. Entry logic
                     signal, _, trail_stop_loss, debug, flags = check_vol_price_body(df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+                    trail_stop_loss = FIXED_TRAIL_STOP_PCT  # experiment: fixed tight stop instead of the tuned/dynamic one
                     log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
                     if not LIVE_TRADING:
                         logger.debug(f'{YELLOW}{symbol}: LIVE_TRADING is off, skipping entry.{RESET}')

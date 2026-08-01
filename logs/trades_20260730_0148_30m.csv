@@ -1,0 +1,18 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-07-30 10:23:39.164149,AMD,ibkr,enter_long,492.24,10.0,long
+2026-07-30 10:23:43.316916,NBIS,ibkr,enter_long,193.29,10.0,long
+2026-07-30 10:23:47.083091,DELL,ibkr,enter_long,409.01,10.0,long
+2026-07-30 10:23:50.998883,ARM,ibkr,enter_short,241.77,10.0,short
+2026-07-30 10:23:55.302859,INTC,ibkr,enter_long,92.99,10.0,long
+2026-07-30 10:26:07.649769,ARM,ibkr,exit_short_trail,242.32,10.0,flat
+2026-07-30 10:26:21.882087,NBIS,ibkr,exit_long_trail,193.66,10.0,flat
+2026-07-30 10:30:28.084321,DELL,ibkr,exit_long_trail,410.0,10.0,flat
+2026-07-30 10:34:33.983120,INTC,ibkr,exit_long_trail,93.61,10.0,flat
+2026-07-30 10:36:19.659103,AMD,ibkr,exit_long_trail,495.57,10.0,flat
+2026-07-30 10:54:17.220113,AMD,ibkr,enter_long,486.72,10.0,long
+2026-07-30 10:55:18.048287,AMD,ibkr,exit_long_trail,483.85,10.0,flat
+2026-07-30 11:24:31.101023,AMD,ibkr,enter_short,484.48,10.0,short
+2026-07-30 11:27:04.134881,AMD,ibkr,exit_short_trail,484.51,10.0,flat
+2026-07-30 14:55:58.874152,ENTG,ibkr,enter_short,117.33,10.0,short
+2026-07-30 15:02:16.748576,ENTG,ibkr,exit_short_trail,118.0,9.0,flat
+2026-07-30 15:02:17.551200,ENTG,ibkr,exit_short_trail,117.999,1.0,flat
