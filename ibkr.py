@@ -280,6 +280,47 @@ class IBKRGateway:
         logger.info('Order status: %s', trade.orderStatus.status)
         return trade
 
+    # Flattens an existing position for `contract`: looks up its direction/quantity via
+    # get_positions(), cancels any resting exit orders for that symbol (the trail stop / take-profit
+    # left over from place_bracket_trailing — otherwise they could still fire after a manual close),
+    # then submits a single opposite-side order. Works for both long and short positions.
+    # limit_price=None submits a MarketOrder; a numeric value submits a LimitOrder.
+    # quantity=None closes the full position; pass a smaller value for a partial close.
+    # Raises ValueError if there's no open position for the contract's symbol.
+    def close_position(self, contract: Contract, limit_price: float = None, quantity: float = None):
+        symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
+        pos = next((p for p in self.get_positions() if getattr(p.contract, 'symbol', None) == symbol and p.position != 0), None)
+        if pos is None:
+            raise ValueError(f'{RED}No open position for {symbol}{RESET}')
+
+        close_qty = abs(quantity) if quantity is not None else abs(pos.position)
+        action = 'SELL' if pos.position > 0 else 'BUY'
+
+        # Cancel resting exit orders (trail stop / take-profit) so they don't fire after we've closed.
+        self.ib.reqAllOpenOrders()
+        self.ib.sleep(1)
+        resting = [
+            t for t in self.ib.openTrades()
+            if getattr(t.contract, 'symbol', None) == symbol
+            and t.orderStatus.status not in ('Filled', 'Cancelled', 'Inactive')
+        ]
+        for t in resting:
+            self.ib.cancelOrder(t.order)
+            logger.info(f'{YELLOW}Cancelled resting {symbol} {t.order.orderType} order {t.order.orderId}{RESET}')
+        if resting:
+            self.ib.sleep(1)
+
+        order = LimitOrder(action, close_qty, limit_price) if limit_price is not None else MarketOrder(action, close_qty)
+        trade = self.ib.placeOrder(contract, order)
+        self.ib.sleep(1)
+        logger.info(
+            f'{GREEN}Close order placed: %s %s %s @ %s | status=%s{RESET}',
+            action, close_qty, symbol,
+            f'{limit_price:.4f}' if limit_price is not None else 'MARKET',
+            trade.orderStatus.status,
+        )
+        return trade
+
 
 if __name__ == '__main__':
     gateway = IBKRGateway(client_id=78)

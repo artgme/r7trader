@@ -17,6 +17,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 from ibkr import IBKRGateway
+import positions_observer as po
 import params_lookup
 from signal_checks import check_vol_price_body
 import time
@@ -45,6 +46,9 @@ FILL_TIMEOUT = 10
 LIVE_TRADING = True
 FIXED_TRAIL_STOP_PCT = 0.3  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
+EXCHANGE_CLOSE_TIME = datetime.time(16, 0)
+CLOSE_OVERNIGHT = True  # if True, flatten every open position shortly before the exchange closes — no overnight holds
+CLOSE_BEFORE_SECONDS = 600  # how far ahead of the close to flatten, when CLOSE_OVERNIGHT is on
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
 TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
@@ -57,22 +61,17 @@ def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity:
 
     if already_in_position:
         logger.info(f'{YELLOW}Signal {signal} skipped — already in position.{RESET}')
-    elif signal == 'SELL':
-        entry, tp, trail = gw.place_bracket_trailing(
-            contract,
-            action='SELL',
-            quantity=quantity,
-            trail_percent=trail_stop_loss,
-            fill_timeout=fill_timeout,
-        )
-    elif signal == 'BUY':
-        entry, tp, trail = gw.place_bracket_trailing(
-            contract,
-            action='BUY',
-            quantity=quantity,
-            trail_percent=trail_stop_loss,
-            fill_timeout=fill_timeout,
-        )
+        return
+
+    entry, tp, trail = gw.place_bracket_trailing(
+        contract,
+        action=signal,
+        quantity=quantity,
+        trail_percent=trail_stop_loss,
+        fill_timeout=fill_timeout,
+    )
+    if trail is not None:
+        po.add_position(symbol, entry.orderStatus.filled, signal, entry.orderStatus.avgFillPrice, contract)
 
 def round_to_tick(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, 10)
@@ -92,6 +91,26 @@ def get_exchange_opening_time(now: float) -> float:
     now_dt = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ)
     opening_dt = datetime.datetime.combine(now_dt.date(), EXCHANGE_OPEN_TIME, tzinfo=EXCHANGE_TZ)
     return opening_dt.timestamp()
+
+# Usage: exchange_closing_time = get_exchange_closing_time(time.time())
+def get_exchange_closing_time(now: float) -> float:
+    """Return today's exchange close (16:00 ET) as a Unix timestamp comparable to time.time()."""
+    now_dt = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ)
+    closing_dt = datetime.datetime.combine(now_dt.date(), EXCHANGE_CLOSE_TIME, tzinfo=EXCHANGE_TZ)
+    return closing_dt.timestamp()
+
+# Flattens every open position via gw.close_position — used ahead of the exchange close so nothing is held overnight.
+def close_all_positions(gw: IBKRGateway) -> None:
+    for p in gw.get_positions():
+        if p.position == 0:
+            continue
+        symbol = p.contract.symbol
+        try:
+            gw.close_position(p.contract)
+            logger.info(f'{YELLOW}Closed {symbol} ahead of exchange close.{RESET}')
+        except ValueError as e:
+            logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
+    po.sync_with_ibkr(gw.get_positions())
 
 def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False, currency: str = 'USD'):
     contract = gw.make_stock_contract(symbol, currency=currency)
@@ -128,6 +147,8 @@ def main():
     if not gw.ensure_connected():
         logger.error(f'{RED}Could not connect to IBKR. Is the Gateway/TWS running?{RESET}')
         return
+    po.start_dashboard()
+    po.sync_with_ibkr(gw.get_positions())
     def _on_ibkr_error(reqId, code, msg, _):
         # codes >= 2000 are connection/system info; 202 = order cancelled confirmation
         if code >= 2000 or code == 202:
@@ -160,6 +181,7 @@ def main():
         logger.debug(f'Monitoruję połączenie co {CHECK_INTERVAL} [s]. Wciśnij Ctrl+C aby zakończyć działanie programu.')
         last_fetch = 0
         last_processed_candle = {sym: None for sym in SYMBOLS}
+        closed_overnight_on = None
         contracts = {sym: gw.make_stock_contract(sym, currency=SYMBOL_CURRENCY[sym]) for sym in SYMBOLS}
         while True:
             gw.ib.sleep(CHECK_INTERVAL)
@@ -168,6 +190,12 @@ def main():
                 break
             #logger.debug('...')
             now = time.time()
+            closing_time = get_exchange_closing_time(now)
+            today = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ).date()
+            if CLOSE_OVERNIGHT and closed_overnight_on != today and closing_time - CLOSE_BEFORE_SECONDS <= now < closing_time:
+                logger.info(f'{YELLOW}CLOSE_OVERNIGHT: flattening all positions ({CLOSE_BEFORE_SECONDS // 60}min to exchange close).{RESET}')
+                close_all_positions(gw)
+                closed_overnight_on = today
             too_early = now < get_exchange_opening_time(now) + tf_seconds
             #logger.debug(f'tick: now={now:.0f}, last_fetch={last_fetch:.0f}, diff={now - last_fetch:.0f}s')
             if now - last_fetch >= fetch_interval:
@@ -189,6 +217,7 @@ def main():
                         logger.warning(f'{YELLOW}No data for {symbol}, skipping.{RESET}')
                         continue
                     df = df.tail(vol_len).copy()
+                    po.update_current_price(symbol, df['Close'].iloc[-1])
 
                     #5. Sprawdź czy świeca już była przetworzona, jeśli tak to pomiń logikę wejścia
                     candle_time = df.iloc[-2].name
@@ -210,6 +239,7 @@ def main():
 
                 #7. Print positions
                 current_positions = gw.get_positions()
+                po.sync_with_ibkr(current_positions)
                 if current_positions:
                     for p in current_positions:
                         logger.debug(f'{BLUE}Position: {p}{RESET}')
