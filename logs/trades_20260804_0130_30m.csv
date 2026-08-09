@@ -1,0 +1,19 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-08-04 10:05:02.319690,TEAM,ibkr,enter_short,106.58,10.0,short
+2026-08-04 10:05:07.032018,MRNA,ibkr,enter_short,56.6,10.0,short
+2026-08-04 10:05:11.112072,CVNA,ibkr,enter_long,68.74,10.0,long
+2026-08-04 10:05:15.049464,IVZ,ibkr,enter_long,31.52,10.0,long
+2026-08-04 10:06:49.060094,TEAM,ibkr,exit_short_trail,106.94,10.0,flat
+2026-08-04 10:08:55.996022,MRNA,ibkr,exit_short_trail,56.8,10.0,flat
+2026-08-04 10:10:59.032628,IVZ,ibkr,exit_long_trail,31.41,10.0,flat
+2026-08-04 10:12:22.042552,CVNA,ibkr,exit_long_trail,69.1,10.0,flat
+2026-08-04 10:35:23.660500,APTV,ibkr,enter_short,48.61,10.0,short
+2026-08-04 10:35:31.029299,HPE,ibkr,enter_short,50.66,10.0,short
+2026-08-04 10:37:57.460273,HPE,ibkr,exit_short_trail,50.56,10.0,flat
+2026-08-04 10:38:10.797753,APTV,ibkr,exit_short_trail,48.53,10.0,flat
+2026-08-04 11:05:36.056956,AMD,ibkr,enter_long,517.64,10.0,long
+2026-08-04 11:26:07.987323,AMD,ibkr,exit_long_trail,519.87,10.0,flat
+2026-08-04 13:06:27.058303,DELL,ibkr,enter_long,474.47,10.0,long
+2026-08-04 13:09:14.406530,DELL,ibkr,exit_long_trail,474.0,10.0,flat
+2026-08-04 13:36:43.957682,REZI,ibkr,enter_long,26.88,10.0,long
+2026-08-04 13:38:20.748755,REZI,ibkr,exit_long_trail,26.66,10.0,flat

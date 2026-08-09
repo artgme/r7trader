@@ -43,7 +43,7 @@ TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
-FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
+FIXED_TRAIL_STOP_PCT = 0.3  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
