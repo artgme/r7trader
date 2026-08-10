@@ -10,11 +10,16 @@ from logging_functions import EXCHANGE_TZ
 logger = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
-POSITION_COLUMNS = ['Number', 'Entry Time', 'Direction', 'Currency', 'Entry Price', 'Current Price', 'Contract']
+POSITION_COLUMNS = ['Number', 'Entry Time', 'Direction', 'Currency', 'Entry Price', 'Current Price', 'PL', 'Contract']
 
 _lock = threading.Lock()
 positions_df = pd.DataFrame(columns=POSITION_COLUMNS)
 positions_df.index.name = 'Ticker'
+
+
+def _pl(number: float, direction: str, entry_price: float, current_price: float) -> float:
+    sign = 1 if direction == 'BUY' else -1
+    return (current_price - entry_price) * number * sign
 
 
 # `contract` is the fully-qualified ib_insync Contract for this position (carries currency,
@@ -22,7 +27,7 @@ positions_df.index.name = 'Ticker'
 # having to reconstruct or guess it. Currency is read off it rather than passed separately.
 def add_position(ticker: str, number: float, direction: str, entry_price: float, contract) -> None:
     with _lock:
-        positions_df.loc[ticker] = [number, datetime.datetime.now(EXCHANGE_TZ), direction, contract.currency, entry_price, entry_price, contract]
+        positions_df.loc[ticker] = [number, datetime.datetime.now(EXCHANGE_TZ), direction, contract.currency, entry_price, entry_price, 0.0, contract]
 
 
 def remove_position(ticker: str) -> None:
@@ -33,7 +38,9 @@ def remove_position(ticker: str) -> None:
 def update_current_price(ticker: str, price: float) -> None:
     with _lock:
         if ticker in positions_df.index:
+            row = positions_df.loc[ticker]
             positions_df.loc[ticker, 'Current Price'] = price
+            positions_df.loc[ticker, 'PL'] = _pl(row['Number'], row['Direction'], row['Entry Price'], price)
 
 
 # Reconciles positions_df against IBKR's own bookkeeping: adds rows for open positions we
@@ -51,7 +58,7 @@ def sync_with_ibkr(ibkr_positions: list) -> None:
             open_tickers.add(ticker)
             if ticker not in positions_df.index:
                 direction = 'BUY' if p.position > 0 else 'SELL'
-                positions_df.loc[ticker] = [abs(p.position), pd.NaT, direction, p.contract.currency, p.avgCost, p.avgCost, p.contract]
+                positions_df.loc[ticker] = [abs(p.position), pd.NaT, direction, p.contract.currency, p.avgCost, p.avgCost, 0.0, p.contract]
 
         stale = positions_df.index.difference(open_tickers)
         positions_df.drop(index=stale, inplace=True)

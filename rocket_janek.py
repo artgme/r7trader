@@ -44,7 +44,7 @@ TIMEFRAME = '30m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
-FIXED_TRAIL_STOP_PCT = 0.3  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
+FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 EXCHANGE_CLOSE_TIME = datetime.time(16, 0)
 CLOSE_OVERNIGHT = True  # if True, flatten every open position shortly before the exchange closes — no overnight holds
@@ -100,14 +100,19 @@ def get_exchange_closing_time(now: float) -> float:
     return closing_dt.timestamp()
 
 # Flattens every open position via gw.close_position — used ahead of the exchange close so nothing is held overnight.
+# close_position now waits for the fill, so a non-'Filled' status here means the position is still
+# open and its trail/TP was already cancelled — i.e. naked. Surfaced loudly on purpose.
 def close_all_positions(gw: IBKRGateway) -> None:
     for p in gw.get_positions():
         if p.position == 0:
             continue
         symbol = p.contract.symbol
         try:
-            gw.close_position(p.contract)
-            logger.info(f'{YELLOW}Closed {symbol} ahead of exchange close.{RESET}')
+            trade = gw.close_position(p.contract)
+            if trade.orderStatus.status == 'Filled':
+                logger.info(f'{YELLOW}Closed {symbol} ahead of exchange close.{RESET}')
+            else:
+                logger.error(f'{RED}{symbol} did NOT close (status={trade.orderStatus.status}) — position is open and unprotected.{RESET}')
         except ValueError as e:
             logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
     po.sync_with_ibkr(gw.get_positions())

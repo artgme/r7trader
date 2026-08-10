@@ -283,11 +283,13 @@ class IBKRGateway:
     # Flattens an existing position for `contract`: looks up its direction/quantity via
     # get_positions(), cancels any resting exit orders for that symbol (the trail stop / take-profit
     # left over from place_bracket_trailing — otherwise they could still fire after a manual close),
-    # then submits a single opposite-side order. Works for both long and short positions.
+    # then submits a single opposite-side order and waits for it to fill. Works for both long and short.
     # limit_price=None submits a MarketOrder; a numeric value submits a LimitOrder.
     # quantity=None closes the full position; pass a smaller value for a partial close.
+    # fill_timeout: seconds to wait for the close to fill before giving up (the position is then
+    # left exactly as IBKR reports it — check trade.orderStatus.status; it will not be 'Filled').
     # Raises ValueError if there's no open position for the contract's symbol.
-    def close_position(self, contract: Contract, limit_price: float = None, quantity: float = None):
+    def close_position(self, contract: Contract, limit_price: float = None, quantity: float = None, fill_timeout: float = 30.0):
         symbol = contract.symbol if hasattr(contract, 'symbol') else contract.secType
         pos = next((p for p in self.get_positions() if getattr(p.contract, 'symbol', None) == symbol and p.position != 0), None)
         if pos is None:
@@ -312,12 +314,19 @@ class IBKRGateway:
 
         order = LimitOrder(action, close_qty, limit_price) if limit_price is not None else MarketOrder(action, close_qty)
         trade = self.ib.placeOrder(contract, order)
-        self.ib.sleep(1)
-        logger.info(
-            f'{GREEN}Close order placed: %s %s %s @ %s | status=%s{RESET}',
+
+        deadline = time.time() + fill_timeout
+        while trade.orderStatus.status not in {'Filled', 'Cancelled', 'Inactive'} and time.time() < deadline:
+            self.ib.sleep(0.5)
+
+        status = trade.orderStatus.status
+        color = GREEN if status == 'Filled' else RED
+        log = logger.info if status == 'Filled' else logger.error
+        log(
+            f'{color}Close order: %s %s %s @ %s | status=%s{RESET}',
             action, close_qty, symbol,
             f'{limit_price:.4f}' if limit_price is not None else 'MARKET',
-            trade.orderStatus.status,
+            status,
         )
         return trade
 
