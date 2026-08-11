@@ -1,0 +1,7 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-08-11 15:41:32.211618,RBLX,ibkr,enter_long,36.81,10.0,long
+2026-08-11 15:41:34.024934,VSAT,ibkr,enter_long,84.73,10.0,long
+2026-08-11 15:41:35.665668,LITE,ibkr,enter_short,817.02,10.0,short
+2026-08-11 15:41:37.152065,BE,ibkr,enter_long,213.7,10.0,long
+2026-08-11 15:41:39.026901,CIEN,ibkr,enter_short,387.06,10.0,short
+2026-08-11 15:41:40.922709,AMAT,ibkr,enter_long,525.46,10.0,long

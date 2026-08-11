@@ -48,7 +48,7 @@ FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 EXCHANGE_CLOSE_TIME = datetime.time(16, 0)
 CLOSE_OVERNIGHT = True  # if True, flatten every open position shortly before the exchange closes — no overnight holds
-CLOSE_BEFORE_SECONDS = 600  # how far ahead of the close to flatten, when CLOSE_OVERNIGHT is on
+CLOSE_BEFORE_SECONDS = 1200  # how far ahead of the close to flatten, when CLOSE_OVERNIGHT is on
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
 TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
@@ -98,6 +98,20 @@ def get_exchange_closing_time(now: float) -> float:
     now_dt = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ)
     closing_dt = datetime.datetime.combine(now_dt.date(), EXCHANGE_CLOSE_TIME, tzinfo=EXCHANGE_TZ)
     return closing_dt.timestamp()
+
+# Usage: expected = expected_last_closed_candle(time.time(), 1800)
+# Computed purely from wall-clock time and the market open, independent of whatever IBKR
+# actually returns — used to detect when IBKR has handed back a stale candle.
+def expected_last_closed_candle(now: float, tf_seconds: int) -> datetime.datetime | None:
+    """Return the start-time of the most recently closed candle as of `now`, or None if
+    less than one full candle has elapsed since open (nothing could have closed yet)."""
+    open_ts = get_exchange_opening_time(now)
+    elapsed = now - open_ts
+    n = int(elapsed // tf_seconds)
+    if n < 1:
+        return None
+    boundary_ts = open_ts + (n - 1) * tf_seconds
+    return datetime.datetime.fromtimestamp(boundary_ts, tz=EXCHANGE_TZ)
 
 # Flattens every open position via gw.close_position — used ahead of the exchange close so nothing is held overnight.
 # close_position now waits for the fill, so a non-'Filled' status here means the position is still
@@ -206,6 +220,7 @@ def main():
             if now - last_fetch >= fetch_interval:
                 positions = gw.get_positions()
                 for symbol in SYMBOLS:
+                  try:
                     #3. Parametry per-symbol — każdy symbol ma własną strojoną konfigurację:
                     params = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', symbol, TIMEFRAME)
                     vol_len = params.get('vol_len', 10)
@@ -224,8 +239,12 @@ def main():
                     df = df.tail(vol_len).copy()
                     po.update_current_price(symbol, df['Close'].iloc[-1])
 
-                    #5. Sprawdź czy świeca już była przetworzona, jeśli tak to pomiń logikę wejścia
+                    #5. Zweryfikuj świeżość świecy, potem sprawdź czy już była przetworzona
                     candle_time = df.iloc[-2].name
+                    expected = expected_last_closed_candle(now, tf_seconds)
+                    if expected is not None and candle_time < expected:
+                        logger.warning(f'{YELLOW}{symbol}: stale candle from IBKR ({candle_time} < expected {expected}), retrying next pass.{RESET}')
+                        continue
                     if candle_time == last_processed_candle[symbol]:
                         logger.debug(f'{YELLOW}{symbol}: candle {candle_time} already processed, skipping.{RESET}')
                         continue
@@ -241,6 +260,9 @@ def main():
                     else:
                         execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
                     last_processed_candle[symbol] = candle_time
+                  except ConnectionError as e:
+                    logger.error(f'{RED}{symbol}: connection error ({e}) — skipping this pass.{RESET}')
+                    continue
 
                 #7. Print positions
                 current_positions = gw.get_positions()

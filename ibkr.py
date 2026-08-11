@@ -312,8 +312,14 @@ class IBKRGateway:
         if resting:
             self.ib.sleep(1)
 
+        # Route through SMART rather than reusing `contract` as-is: a Position's contract reflects
+        # the specific exchange it's actually settled on (e.g. NYSE/NASDAQ), and placing an order
+        # directly on that pinned exchange trips IBKR's "direct routed order" precaution (error
+        # 10311) and gets silently cancelled unless that's been allowed in Global Configuration.
+        close_contract = self.make_stock_contract(symbol, currency=contract.currency)
         order = LimitOrder(action, close_qty, limit_price) if limit_price is not None else MarketOrder(action, close_qty)
-        trade = self.ib.placeOrder(contract, order)
+        order.orderRef = 'close_position'  # lets make_fill_handler recognize this as an exit, not an entry
+        trade = self.ib.placeOrder(close_contract, order)
 
         deadline = time.time() + fill_timeout
         while trade.orderStatus.status not in {'Filled', 'Cancelled', 'Inactive'} and time.time() < deadline:

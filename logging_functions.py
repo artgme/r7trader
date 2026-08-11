@@ -114,11 +114,14 @@ def make_fill_handler(log_path: Path, default_symbol: str):
         price      = fill.execution.avgPrice
         size       = fill.execution.shares
         has_oca    = bool(getattr(trade.order, 'ocaGroup', ''))
+        is_manual_close = getattr(trade.order, 'orderRef', '') == 'close_position'
 
         # Entry orders have no OCA group; TP exits do (TRAIL may or may not).
-        is_entry = order_type in ('LMT', 'MKT') and not has_oca
+        is_entry = order_type in ('LMT', 'MKT') and not has_oca and not is_manual_close
 
-        if is_entry:
+        if is_manual_close:
+            action, position_after = ('exit_long_manual', 'flat') if side == 'SLD' else ('exit_short_manual', 'flat')
+        elif is_entry:
             action, position_after = ('enter_long', 'long') if side == 'BOT' else ('enter_short', 'short')
         elif order_type == 'TRAIL':
             action, position_after = ('exit_long_trail', 'flat') if side == 'SLD' else ('exit_short_trail', 'flat')
