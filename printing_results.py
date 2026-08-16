@@ -5,7 +5,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - [%(filename)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
-logging.getLogger('ib_insync').setLevel(logging.WARNING)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 

@@ -185,7 +185,7 @@ class DashPlotter:
         self._queue.put({'symbol': symbol, 'date': date, 'open': open_,
                          'high': high, 'low': low, 'close': close, 'volume': volume})
 
-    # Convenience wrapper for ib_insync bar lists (must have .date/.open/.high/.low/.close).
+    # Convenience wrapper for ibkr.py Bar lists (must have .date/.open/.high/.low/.close).
     def push_bars(self, bars, symbol: str = 'default'):
         for bar in bars:
             self.push(bar.date, bar.open, bar.high, bar.low, bar.close,

@@ -108,7 +108,12 @@ def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
 
 def make_fill_handler(log_path: Path, default_symbol: str):
     def _on_fill(trade, fill):
-        symbol     = getattr(trade.contract, 'symbol', default_symbol)
+        symbol = getattr(trade.contract, 'symbol', default_symbol)
+        if trade.order is None:
+            # Fill for an order this process didn't place (e.g. from another client/session) —
+            # no orderType/ocaGroup/orderRef available to classify it, so just skip the trade log.
+            logger.warning('Fill for untracked order (orderId=%s, symbol=%s) — skipping trade log.', fill.execution.orderId, symbol)
+            return
         order_type = trade.order.orderType
         side       = fill.execution.side    # 'BOT' or 'SLD'
         price      = fill.execution.avgPrice

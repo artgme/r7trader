@@ -22,7 +22,7 @@ def _pl(number: float, direction: str, entry_price: float, current_price: float)
     return (current_price - entry_price) * number * sign
 
 
-# `contract` is the fully-qualified ib_insync Contract for this position (carries currency,
+# `contract` is the fully-qualified ibapi Contract for this position (carries currency,
 # exchange, conId, ...) so it can be handed straight to gw.close_position() later without
 # having to reconstruct or guess it. Currency is read off it rather than passed separately.
 def add_position(ticker: str, number: float, direction: str, entry_price: float, contract) -> None:

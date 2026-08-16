@@ -20,7 +20,7 @@ def main():
     closed_overnight_on = None
     try:
         while True:
-            gw.ib.sleep(20)
+            time.sleep(20)
             now = time.time()
             closing_time = get_exchange_closing_time(now)
             today = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ).date()

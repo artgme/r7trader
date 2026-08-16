@@ -5,7 +5,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - [%(filename)s] - %(message)s"
 )
 logger = logging.getLogger(__name__)
-logging.getLogger('ib_insync').setLevel(logging.WARNING)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
@@ -154,17 +153,17 @@ def main():
         return
     po.start_dashboard()
     po.sync_with_ibkr(gw.get_positions())
-    def _on_ibkr_error(reqId, code, msg, _):
+    def _on_ibkr_error(reqId, code, msg):
         # codes >= 2000 are connection/system info; 202 = order cancelled confirmation
         if code >= 2000 or code == 202:
             logger.debug(f'IBKR info {code} (reqId={reqId}): {msg}')
         else:
             logger.error(f'{RED}IBKR error {code} (reqId={reqId}): {msg}{RESET}')
-    gw.ib.errorEvent += _on_ibkr_error
+    gw.on_error(_on_ibkr_error)
     #logging data
     init_trade_log(TRADE_LOG)
     init_signal_log(SIGNAL_LOG)
-    gw.ib.execDetailsEvent += make_fill_handler(TRADE_LOG, '')
+    gw.on_fill(make_fill_handler(TRADE_LOG, ''))
 
     def _on_fill(trade, fill):
         logger.info(
@@ -172,7 +171,7 @@ def main():
             f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
         )
 
-    gw.ib.execDetailsEvent += _on_fill
+    gw.on_fill(_on_fill)
 
     try:
         #1. Pobiera paramtry strategii z configs.py:
@@ -189,7 +188,7 @@ def main():
         closed_overnight_on = None
         contracts = {sym: gw.make_stock_contract(sym, currency=SYMBOL_CURRENCY[sym]) for sym in SYMBOLS}
         while True:
-            gw.ib.sleep(CHECK_INTERVAL)
+            time.sleep(CHECK_INTERVAL)
             if not gw.ensure_connected():
                 logger.error('Lost connection and could not reconnect. Exiting.')
                 break

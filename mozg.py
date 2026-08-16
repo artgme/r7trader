@@ -17,6 +17,7 @@ import logging
 import queue
 import signal
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -205,9 +206,9 @@ class Mozg:
         return True
 
     def _connect_ibkr(self) -> bool:
-        # IBKRGateway (and IB()) is created inside _ibkr_data_worker() after util.startLoop(),
-        # so that ib_insync's async machinery runs on the worker thread's event loop.
-        # Nothing to do here — run() waits on _ibkr_connected for the worker to confirm.
+        # IBKRGateway is created inside _ibkr_data_worker() so its background reader thread
+        # belongs to the worker, not this one. Nothing to do here — run() waits on
+        # _ibkr_connected for the worker to confirm.
         return True
 
     # ── Position sync ────────────────────────────────────────────────────────────
@@ -333,11 +334,6 @@ class Mozg:
     # Polling sidesteps keepUpToDate=True callback delivery issues in Python 3.13
     # background threads (asyncio event-loop dispatch never fires updateEvent).
     def _ibkr_data_worker(self):
-        import asyncio
-        # eventkit (ib_insync dependency) calls get_event_loop() at import time,
-        # so a loop must exist in this thread before the import happens.
-        asyncio.set_event_loop(asyncio.new_event_loop())
-
         from ibkr import IBKRGateway
         self._trader = IBKRGateway(client_id=self.ibkr_client_id)
         if not self._trader.connect():
@@ -352,18 +348,20 @@ class Mozg:
         logger.info('Starting position: %s', self.position)
         self._ibkr_connected.set()  # unblock run() — position is ready
 
-        def on_portfolio_update(item):
-            if getattr(item.contract, 'symbol', '') == self.symbol:
+        def on_portfolio_update(contract, position, marketPrice, marketValue, averageCost, unrealizedPNL, realizedPNL, accountName):
+            if getattr(contract, 'symbol', '') == self.symbol:
                 logger.info('[%s] Portfolio: pos=%.0f price=%.4f unrealPNL=%.2f realPNL=%.2f',
-                            self.symbol, item.position, item.marketPrice,
-                            item.unrealizedPNL, item.realizedPNL)
+                            self.symbol, position, marketPrice,
+                            unrealizedPNL, realizedPNL)
 
-        def on_position(_, contract, position, avgCost):
+        def on_position(account, contract, position, avgCost):
             if getattr(contract, 'symbol', '') == self.symbol:
                 logger.info('[%s] Position: %.0f @ avgCost=%.4f', self.symbol, position, avgCost)
 
-        self._trader.ib.updatePortfolioEvent += on_portfolio_update
-        self._trader.ib.positionEvent += on_position
+        self._trader.on_portfolio_update(on_portfolio_update)
+        self._trader.on_position_update(on_position)
+        self._trader.start_position_updates()
+        self._trader.start_portfolio_updates()
 
         hist = self._trader.fetch_historical(
             self._ibkr_contract, duration='2 D',
@@ -388,8 +386,8 @@ class Mozg:
         last_bar_ts = _to_ts(hist[-1].date) if hist else pd.Timestamp.now(tz='UTC')
 
         # Poll every 60 s — safe for IBKR's 60-requests-per-10-min pacing limit with
-        # up to ~20 simultaneous strategies.  Each 1-second ib.sleep() tick also drives
-        # the asyncio loop so that portfolio/position events continue to arrive.
+        # up to ~20 simultaneous strategies. Portfolio/position events arrive independently
+        # on the gateway's own background thread; this sleep is just the order-queue pacing.
         POLL_TICKS = 60
         tick = 0
 
@@ -414,7 +412,7 @@ class Mozg:
                 except queue.Empty:
                     pass
 
-                self._trader.ib.sleep(1)
+                time.sleep(1)
                 tick += 1
                 if tick < POLL_TICKS:
                     continue
@@ -446,6 +444,8 @@ class Mozg:
             self._stop_event.set()
             self._feed_queue.put(None)  # unblock cerebro so it shuts down cleanly
 
+        self._trader.stop_position_updates()
+        self._trader.stop_portfolio_updates()
         self._trader.disconnect()
 
     # ── Order intercept ──────────────────────────────────────────────────────────
