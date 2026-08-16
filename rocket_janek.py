@@ -9,7 +9,6 @@ logging.getLogger('ib_insync').setLevel(logging.WARNING)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
-import csv
 import datetime
 import importlib
 from pathlib import Path
@@ -54,9 +53,6 @@ CLOSE_BEFORE_SECONDS = 1200  # how far ahead of the close to flatten, when CLOSE
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
 TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
 SIGNAL_LOG = Path(f'logs/signals_{LOG_SUFFIX}.csv')
-
-CANDLE_LOG_DIR = Path('ibkr_candles_log')
-CANDLE_LOG_N = 15  # how many most-recent candles to log per fetch, oldest -> newest (fixed at the largest vol_len in use, so every symbol's full window is captured)
 
 def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, trail_stop_loss: float, fill_timeout: float, positions: list):
     if not signal:
@@ -103,20 +99,6 @@ def get_exchange_closing_time(now: float) -> float:
     closing_dt = datetime.datetime.combine(now_dt.date(), EXCHANGE_CLOSE_TIME, tzinfo=EXCHANGE_TZ)
     return closing_dt.timestamp()
 
-# Usage: expected = expected_last_closed_candle(time.time(), 1800)
-# Computed purely from wall-clock time and the market open, independent of whatever IBKR
-# actually returns — used to detect when IBKR has handed back a stale candle.
-def expected_last_closed_candle(now: float, tf_seconds: int) -> datetime.datetime | None:
-    """Return the start-time of the most recently closed candle as of `now`, or None if
-    less than one full candle has elapsed since open (nothing could have closed yet)."""
-    open_ts = get_exchange_opening_time(now)
-    elapsed = now - open_ts
-    n = int(elapsed // tf_seconds)
-    if n < 1:
-        return None
-    boundary_ts = open_ts + (n - 1) * tf_seconds
-    return datetime.datetime.fromtimestamp(boundary_ts, tz=EXCHANGE_TZ)
-
 # Flattens every open position via gw.close_position — used ahead of the exchange close so nothing is held overnight.
 # close_position now waits for the fill, so a non-'Filled' status here means the position is still
 # open and its trail/TP was already cancelled — i.e. naked. Surfaced loudly on purpose.
@@ -135,41 +117,6 @@ def close_all_positions(gw: IBKRGateway) -> None:
             logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
     po.sync_with_ibkr(gw.get_positions())
 
-def _candle_log_slot_label(i: int) -> str:
-    if i == 0:
-        return 'oldest'
-    if i == CANDLE_LOG_N - 1:
-        return 'newest'
-    return f'newest-{CANDLE_LOG_N - 1 - i}'
-
-# One file per ticker (ibkr_candles_log/{symbol}.csv) so each file's column count stays fixed —
-# per-symbol vol_len varies, but this log always keeps the last CANDLE_LOG_N candles regardless.
-# Same wide layout as bar_lag_forex.csv: one row per fetch, oldest -> newest, close+volume per slot.
-def log_candles_wide(symbol: str, df: pd.DataFrame) -> None:
-    CANDLE_LOG_DIR.mkdir(exist_ok=True)
-    log_file = CANDLE_LOG_DIR / f'{symbol}.csv'
-    last_n = df.tail(CANDLE_LOG_N)
-    pad = CANDLE_LOG_N - len(last_n)  # missing oldest slots if fewer than CANDLE_LOG_N bars exist yet
-
-    is_new = not log_file.exists()
-    with log_file.open('a', newline='') as f:
-        writer = csv.writer(f)
-        if is_new:
-            header = ['wall_clock']
-            header += [f'bar_time({_candle_log_slot_label(i)})' for i in range(CANDLE_LOG_N)]
-            for i in range(CANDLE_LOG_N):
-                header.append(f'price_close({_candle_log_slot_label(i)})')
-                header.append(f'volume({_candle_log_slot_label(i)})')
-            writer.writerow(header)
-
-        row = [datetime.datetime.now(EXCHANGE_TZ).isoformat()]
-        row += [''] * pad + [ts.strftime('%H:%M:%S') for ts in last_n.index]
-        row += [''] * (pad * 2)
-        for _, r in last_n.iterrows():
-            row.append(r['Close'])
-            row.append(r['Volume'])
-        writer.writerow(row)
-
 def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = '1 D', bar_size: str = '5m', use_rth: bool = False, currency: str = 'USD'):
     contract = gw.make_stock_contract(symbol, currency=currency)
     bars = gw.fetch_historical(contract, duration=duration, bar_size=bar_size, use_rth=use_rth)
@@ -183,8 +130,6 @@ def fetch_data_from_IBKR(gw: IBKRGateway, symbol: str = 'RKLB', duration: str = 
     } for b in bars])
     df['Date'] = pd.to_datetime(df['Date'])
     df.set_index('Date', inplace=True)
-
-    log_candles_wide(symbol, df)
 
     return df
 
@@ -280,12 +225,8 @@ def main():
                     df = df.tail(vol_len).copy()
                     po.update_current_price(symbol, df['Close'].iloc[-1])
 
-                    #5. Zweryfikuj świeżość świecy, potem sprawdź czy już była przetworzona
+                    #5. Sprawdź czy świeca już była przetworzona, jeśli tak to pomiń logikę wejścia
                     candle_time = df.iloc[-2].name
-                    expected = expected_last_closed_candle(now, tf_seconds)
-                    if expected is not None and candle_time < expected:
-                        logger.warning(f'{YELLOW}{symbol}: stale candle from IBKR ({candle_time} < expected {expected}), retrying next pass.{RESET}')
-                        continue
                     if candle_time == last_processed_candle[symbol]:
                         logger.debug(f'{YELLOW}{symbol}: candle {candle_time} already processed, skipping.{RESET}')
                         continue
