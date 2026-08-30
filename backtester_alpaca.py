@@ -19,7 +19,7 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from common import timeframe_to_seconds, RED, GREEN, WHITE, RESET
-from signal_checks import check_vol_price_body
+from signal_checks import check_vol_price_body, scan_trailing_stop
 import configs_rocketJanek as cfg
 
 load_dotenv()
@@ -32,7 +32,7 @@ TIMEFRAME = '30m'
 START_DT = datetime.datetime(2026, 7, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
 END_DAY = datetime.date(2026, 7, 14)
 QUANTITY = 10
-FETCH_AND_PLOT = 0
+FETCH_AND_PLOT = 1
 
 EXCHANGE_TZ = ZoneInfo('America/New_York')
 RTH_OPEN = datetime.time(9, 30)
@@ -91,26 +91,6 @@ def fetch_range(client: StockHistoricalDataClient, ticker: str, start_day: datet
     return df
 
 
-# Usage: exit_time, exit_price = _scan_trailing_stop(high_df, entry_time, entry_price, 'long', 1.2)
-def _scan_trailing_stop(high_df: pd.DataFrame, entry_time, entry_price: float, direction: str, trail_pct: float):
-    """Walk 1m bars forward from entry_time, updating the trailing peak/trough each bar and
-    checking for a stop-hit using that bar's High/Low. Returns (exit_time, exit_price), or
-    (None, None) if the stop was never hit before the data ran out."""
-    extreme = entry_price
-    for ts, bar in high_df[high_df.index >= entry_time].iterrows():
-        if direction == 'long':
-            extreme = max(extreme, bar['High'])
-            stop_price = extreme * (1 - trail_pct / 100)
-            if bar['Low'] <= stop_price:
-                return ts, stop_price
-        else:
-            extreme = min(extreme, bar['Low'])
-            stop_price = extreme * (1 + trail_pct / 100)
-            if bar['High'] >= stop_price:
-                return ts, stop_price
-    return None, None
-
-
 # Usage: marker_trades = to_marker_trades(trades)
 def to_marker_trades(trades: list[dict]) -> list[dict]:
     """Convert run_backtest()'s trade dicts into the enter/exit marker format fetch_and_plot() expects."""
@@ -149,7 +129,7 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
 
         # Same window shape check_vol_price_body() expects live: vol_len bars, candle i is iloc[-2]
         # (the signal candle), candle i+1 stands in for the still-forming iloc[-1] candle.
-        window = low_df.iloc[i - vol_len + 2: i + 2].copy()
+        window = low_df.iloc[i - vol_len + 2: i + 2].copy() #check_vol_price_body reads teh signal candle from a fixed position in the window iloc[-2]
         signal, _, trail_stop_loss, debug, flags = check_vol_price_body(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
         green_volume, green_price, red_price, green_body = flags
         checks.append({
@@ -183,7 +163,7 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
         direction = 'long' if signal == 'BUY' else 'short'
 
         # Walk 1m bars forward until the trailing stop is hit (or data runs out).
-        exit_time, exit_price = _scan_trailing_stop(high_df, entry_time, entry_price, direction, trail_stop_loss)
+        _, exit_time, exit_price = scan_trailing_stop(high_df, entry_time, entry_price, direction, trail_stop_loss)
         if exit_price is not None:
             pnl = (exit_price - entry_price) * quantity if direction == 'long' else (entry_price - exit_price) * quantity
         else:
@@ -348,6 +328,48 @@ def fetch_and_plot(client: StockHistoricalDataClient, ticker: str, trades: list[
     plt.show()
 
 
+# Usage: printing_trades(TICKER, START_DT, END_DAY, TIMEFRAME, trades)
+def printing_trades(ticker: str, start_dt, end_day, timeframe: str, trades: list[dict]) -> None:
+    print(f'\n{ticker} backtest (Alpaca data): {start_dt} to {end_day}, {timeframe} signal / 1m exit, {len(trades)} trade(s)')
+    print(f"\n  {'#':>3}  {'direction':9}  {'signal_time':25}  {'entry_time':25}  {'entry_price':>11}  {'exit_time':25}  {'exit_price':>10}  {'trail_stop_pct':>15}  {'pnl':>10}  {'cum':>10}")
+    cumulative = 0.0
+    for i, t in enumerate(trades, 1):
+        # Pad the plain text to fixed width first, then wrap in color — ANSI codes would
+        # otherwise count toward the f-string width and break column alignment.
+        exit_time_str = str(t['exit_time']) if t['exit_time'] is not None else 'OPEN (never exited)'
+        exit_price_str = f"{t['exit_price']:>10.2f}" if t['exit_price'] is not None else f"{'n/a':>10}"
+        if t['pnl'] is not None:
+            cumulative += t['pnl']
+            pnl_color = GREEN if t['pnl'] >= 0 else RED
+            pnl_str = f"{pnl_color}{t['pnl']:>+10.2f}{RESET}"
+            cum_color = GREEN if cumulative >= 0 else RED
+            cum_str = f"{cum_color}{cumulative:>+10.2f}{RESET}"
+        else:
+            pnl_str = f"{'n/a':>10}"
+            cum_str = f"{'n/a':>10}"
+        print(f"  {i:>3}  {t['direction']:9}  {str(t['signal_time']):25}  {str(t['entry_time']):25}  "
+              f"{t['entry_price']:>11.2f}  {exit_time_str:25}  {exit_price_str}  "
+              f"{t['trail_stop_pct']:>14.2f}%  {pnl_str}  {cum_str}")
+
+
+# Usage: printing_checks(checks)
+def printing_checks(checks: list[dict]) -> None:
+    """Every candle evaluated while flat, whether or not it fired — shows why a signal didn't
+    trigger just as clearly as why one did."""
+    print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  {'price_threshold':>16}  {'trail_stop_pct':>15}  {'body_ratio':>11}")
+    for i, c in enumerate(checks, 1):
+        # Pad the plain text to fixed width first, then wrap in color — ANSI codes would
+        # otherwise count toward the f-string width and break column alignment.
+        volume_color = GREEN if c['green_volume'] else WHITE
+        volume_str = f"{volume_color}{c['volume']:>10.0f}{RESET}"
+        pct_color = GREEN if c['green_price'] else RED if c['red_price'] else WHITE
+        pct_str = f"{pct_color}{c['current_pct']:>+11.2f}%{RESET}"
+        body_color = GREEN if c['green_body'] else WHITE
+        body_str = f"{body_color}{c['body_ratio']:>11.2f}{RESET}"
+        print(f"  {i:>3}  {str(c['signal_time']):25}  {c['signal']:6}  "
+              f"{volume_str}  {c['mean_volume']:>12.0f}  {pct_str}  {c['price_threshold']:>15.2f}%  {c['trail_stop_pct']:>14.2f}%  {body_str}")
+
+
 def main():
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         logger.error('Set ALPACA_API_KEY and ALPACA_SECRET_KEY in .env before running this.')
@@ -356,6 +378,7 @@ def main():
 
     fetch_start_day = START_DT.date() - datetime.timedelta(days=5)  # extra lookback so vol_len has history
     low_df = fetch_range(client, TICKER, fetch_start_day, END_DAY, TIMEFRAME)
+    print(low_df)
     high_df = fetch_range(client, TICKER, fetch_start_day, END_DAY, '1m')
 
     if low_df.empty or high_df.empty:
@@ -378,34 +401,8 @@ def main():
     trades, checks = run_backtest(TICKER, low_df, high_df, START_DT, TIMEFRAME, vol_len,
                                    vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY)
 
-    print(f'\n{TICKER} backtest (Alpaca data): {START_DT} to {END_DAY}, {TIMEFRAME} signal / 1m exit, {len(trades)} trade(s)\n')
-    cumulative = 0.0
-    for i, t in enumerate(trades, 1):
-        exit_str = f"{t['exit_price']:.2f} @ {t['exit_time']}" if t['exit_price'] is not None else 'OPEN (never exited)'
-        if t['pnl'] is not None:
-            cumulative += t['pnl']
-            cum_color = GREEN if cumulative >= 0 else RED
-            pnl_str = f"{t['pnl']:+.2f}  cum {cum_color}{cumulative:+.2f}{RESET}"
-        else:
-            pnl_str = 'n/a'
-        print(f"  #{i:2d}  {t['direction']:5s}  signal {t['signal_time']}  "
-              f"entry {t['entry_price']:.2f} @ {t['entry_time']}  exit {exit_str}  "
-              f"trail {t['trail_stop_pct']:.2f}%  pnl {pnl_str}")
-
-    # Every candle evaluated while flat, whether or not it fired — shows why a signal didn't
-    # trigger just as clearly as why one did.
-    print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  {'price_threshold':>16}  {'trail_stop_pct':>15}  {'body_ratio':>11}")
-    for i, c in enumerate(checks, 1):
-        # Pad the plain text to fixed width first, then wrap in color — ANSI codes would
-        # otherwise count toward the f-string width and break column alignment.
-        volume_color = GREEN if c['green_volume'] else WHITE
-        volume_str = f"{volume_color}{c['volume']:>10.0f}{RESET}"
-        pct_color = GREEN if c['green_price'] else RED if c['red_price'] else WHITE
-        pct_str = f"{pct_color}{c['current_pct']:>+11.2f}%{RESET}"
-        body_color = GREEN if c['green_body'] else WHITE
-        body_str = f"{body_color}{c['body_ratio']:>11.2f}{RESET}"
-        print(f"  {i:>3}  {str(c['signal_time']):25}  {c['signal']:6}  "
-              f"{volume_str}  {c['mean_volume']:>12.0f}  {pct_str}  {c['price_threshold']:>15.2f}%  {c['trail_stop_pct']:>14.2f}%  {body_str}")
+    printing_trades(TICKER, START_DT, END_DAY, TIMEFRAME, trades)
+    printing_checks(checks)
 
     if trades and FETCH_AND_PLOT:
         fetch_and_plot(client, TICKER, to_marker_trades(trades), START_DT.date(), END_DAY, TIMEFRAME)

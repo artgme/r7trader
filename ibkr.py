@@ -102,6 +102,13 @@ def _bar_from_ibapi(b) -> Bar:
     return Bar(date=_parse_bar_date(b.date), open=b.open, high=b.high, low=b.low, close=b.close, volume=float(b.volume))
 
 
+def _bar_from_realtime(time: int, open_: float, high: float, low: float, close: float, volume) -> Bar:
+    """realtimeBar()'s `time` is Unix epoch seconds (UTC) — unlike historical bars, there's no
+    exchange-timezone string attached, so callers wanting exchange-local time must convert."""
+    date = datetime.datetime.fromtimestamp(time, tz=datetime.timezone.utc)
+    return Bar(date=date, open=open_, high=high, low=low, close=close, volume=float(volume))
+
+
 def _market_order(action: str, quantity: float) -> Order:
     o = Order()
     o.action = action
@@ -133,6 +140,7 @@ class _Wrapper(TWSSyncWrapper):
         self._fill_handlers = []
         self._position_handlers = []
         self._portfolio_handlers = []
+        self._realtimebar_handlers = []
 
     def error(self, reqId, errorTime, errorCode, errorString, advancedOrderRejectJson=""):
         super().error(reqId, errorTime, errorCode, errorString, advancedOrderRejectJson)
@@ -186,6 +194,15 @@ class _Wrapper(TWSSyncWrapper):
                 cb(contract, position, marketPrice, marketValue, averageCost, unrealizedPNL, realizedPNL, accountName)
             except Exception:
                 logger.exception('portfolio handler raised')
+
+    def realtimeBar(self, reqId, time, open_, high, low, close, volume, wap, count):
+        super().realtimeBar(reqId, time, open_, high, low, close, volume, wap, count)
+        bar = _bar_from_realtime(time, open_, high, low, close, volume)
+        for cb in self._realtimebar_handlers:
+            try:
+                cb(reqId, bar)
+            except Exception:
+                logger.exception('realtime bar handler raised')
 
 
 class IBKRGateway:
@@ -255,6 +272,11 @@ class IBKRGateway:
     def on_portfolio_update(self, callback) -> None:
         self.app._portfolio_handlers.append(callback)
 
+    # Registers a callback for live 5-second bars: cb(reqId, bar). Fires on every bar until
+    # stop_realtime_bars(reqId) is called for that request.
+    def on_realtime_bar(self, callback) -> None:
+        self.app._realtimebar_handlers.append(callback)
+
     # Opens a continuous position-update stream: handlers registered via on_position_update
     # fire on every subsequent position change until stop_position_updates() is called.
     # get_positions() does its own short-lived request/cancel internally and does not need this.
@@ -272,6 +294,19 @@ class IBKRGateway:
 
     def stop_portfolio_updates(self, account_code: str = '') -> None:
         self.app.reqAccountUpdates(False, account_code)
+
+    # Opens a continuous 5-second-bar subscription for `contract`. Handlers registered via
+    # on_realtime_bar fire on every subsequent bar until stop_realtime_bars(reqId) is called.
+    # Only 5s bars exist (barSize is ignored by IBKR); what_to_show: 'TRADES', 'MIDPOINT', 'BID', or 'ASK'.
+    # Each open subscription counts as one Market Data Line, same as a TWS watchlist row.
+    # Returns the reqId needed to stop this specific subscription later.
+    def start_realtime_bars(self, contract: Contract, what_to_show: str = 'TRADES', use_rth: bool = True) -> int:
+        req_id = self.app.get_next_valid_id()
+        self.app.reqRealTimeBars(req_id, contract, 5, what_to_show, int(use_rth), [])
+        return req_id
+
+    def stop_realtime_bars(self, req_id: int) -> None:
+        self.app.cancelRealTimeBars(req_id)
 
     # Returns an equity Contract. SMART routing lets IBKR choose the best execution venue automatically.
     def make_stock_contract(self, symbol: str, exchange: str = 'SMART', currency: str = 'USD') -> Contract:

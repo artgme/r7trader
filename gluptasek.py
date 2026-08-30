@@ -8,6 +8,8 @@ logger = logging.getLogger(__name__)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
+import datetime
+from collections import deque
 from pathlib import Path
 
 import pandas as pd
@@ -18,6 +20,7 @@ import configs_rocketJanek as cfg
 import params_lookup
 import time
 from logging_functions import init_trade_log, make_fill_handler
+from signal_checks import check_vol_price_body, scan_trailing_stop, scan_take_profit
 
 CLIENT_ID=78
 
@@ -25,6 +28,10 @@ CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOL = 'RKLB' #ASM, BESI - EUR
 TIMEFRAME = '10m'
 QUANTITY = 100
+
+LIVE_WINDOW_BARS = 12   # reqRealTimeBars() only ever hands back 5s bars; 12 of them = 1 minute
+                         # between client-side trailing-stop / take-profit checks
+TAKE_PROFIT_RR = 2.0    # experiment: take-profit target = trail_stop_loss × this risk:reward multiple
 
 
 TRADE_LOG = Path('logs/trades_rklb_gluptasek_26Jun2.csv')
@@ -37,65 +44,29 @@ CYAN   = '\033[36m'
 WHITE  = '\033[37m'
 RESET  = '\033[0m'
 
+# Usage: entry = execute_trade(gw, 'RKLB', 'BUY', contract, 100, 12.34, 0.8, 0.01)
+# Places the entry (+ a broker-side TRAIL as a safety net) and returns (entry_trade, trail_trade)
+# once filled, or None if the signal was skipped (no signal / already in position / didn't fill).
 def execute_trade(gw: IBKRGateway, symbol: str, signal: str, contract, quantity: int, price: float, trail_stop_loss: float, tick_size: float):
-    #Skip an order in case we are already in position for the same symbol
     if not signal:
-        #logger.debug(f'{YELLOW}No signal generated, skipping trade execution.{RESET}')
-        return
+        return None
     positions = gw.get_positions()
     already_in_position = any(getattr(p.contract, 'symbol', None) == symbol for p in positions)
-
     if already_in_position:
         logger.info(f'{YELLOW}Signal {signal} skipped — already in position.{RESET}')
-    elif signal == 'SELL':
-        entry, tp, trail = gw.place_bracket_trailing(
-            contract,
-            action='SELL',
-            quantity=quantity,
-            limit_price=round_to_tick(price * 0.995, tick_size),
-            trail_percent=trail_stop_loss,
-        )
-    elif signal == 'BUY':
-        entry, tp, trail = gw.place_bracket_trailing(
-            contract,
-            action='BUY',
-            quantity=quantity,
-            limit_price=round_to_tick(price * 1.005, tick_size),
-            trail_percent=trail_stop_loss,
-        )
+        return None
 
-def buy_or_sell(df: pd.DataFrame, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float) -> tuple:
-    #1. Aktualne dane
-    last_candle = df.iloc[-2]
-    price = last_candle['Close'] #use in stop loss and take profit orders
-    volume = last_candle['Volume']
-
-    #2. Zaktualizuj indykatory
-    #df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open']
-    df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open'].replace(0, float('nan'))
-    #print(df['candle_pct'])
-    current_pct = df['candle_pct'].iloc[-2]
-    mean_abs_change = df['candle_pct'].abs().iloc[:-2].mean()
-    #trail_stop_loss = max(mean_abs_change * trail_stop_pct, 0.1)
-    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.2), 3.0)
-    logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
-    #print(f'Mean absolute change: {mean_abs_change:.2f}%')
-    mean_volume = df['Volume'].mean()
-    
-    volume_threshold = mean_volume * vol_multiplier
-    price_threshold = mean_abs_change * price_move_pct
-    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, price_threshold: {price_threshold:.2f}{RESET}')
-    #3. Check conditions for buy/sell signals
-    if volume > volume_threshold and current_pct > price_threshold:
-        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
-        SIGNAL = 'BUY'
-    elif volume > volume_threshold and current_pct < -price_threshold:
-        logger.info(f'{RED}SELL: candle_pct {current_pct:.2f}% < -{price_threshold:.2f}% | volume {volume:.0f} > {volume_threshold:.0f}{RESET}')
-        SIGNAL = 'SELL'
-    else:
-        SIGNAL = None
-
-    return SIGNAL, price, trail_stop_loss
+    limit_mult = 0.995 if signal == 'SELL' else 1.005
+    entry, tp, trail = gw.place_bracket_trailing(
+        contract,
+        action=signal,
+        quantity=quantity,
+        limit_price=round_to_tick(price * limit_mult, tick_size),
+        trail_percent=trail_stop_loss,
+    )
+    if trail is None:
+        return None  # entry didn't fill
+    return entry, trail
 
 def round_to_tick(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, 10)
@@ -158,11 +129,71 @@ def main():
             f'FILL: {fill.execution.side} {fill.execution.shares} {trade.contract.symbol} '
             f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
         )
+        # Any fill that isn't the tracked entry order is an exit — whether triggered by our own
+        # client-side check (close_position) or the broker-side TRAIL firing on its own. Either
+        # way, stop tracking so the next bar doesn't try to close an already-flat position.
+        open_trade = trade_state['trade']
+        if open_trade is not None and fill.execution.orderId != open_trade['entry_order_id']:
+            logger.info(f'{YELLOW}Exit fill detected for {SYMBOL} (orderId={fill.execution.orderId}) — clearing trade state.{RESET}')
+            trade_state['trade'] = None
 
     gw.on_fill(_on_fill)
 
+    # Client-side trailing-stop state — 'trade' is None while flat, else a dict tracking the
+    # running peak/trough (see signal_checks.scan_trailing_stop) across repeated live-bar checks.
+    # The broker-side TRAIL order placed by execute_trade() stays in place as a safety net; this
+    # is a second, tighter check evaluated every LIVE_WINDOW_BARS live bars (~1 minute).
+    trade_state = {'trade': None, 'bars_since_check': 0}
+    live_bars = deque(maxlen=LIVE_WINDOW_BARS)
+    realtime_req_id = None
+
+    def _on_realtime_bar(reqId, bar):
+        live_bars.append(bar)
+        trade = trade_state['trade']
+        if trade is None:
+            return
+        trade_state['bars_since_check'] += 1
+        if trade_state['bars_since_check'] < LIVE_WINDOW_BARS:
+            return
+        trade_state['bars_since_check'] = 0
+
+        window_df = pd.DataFrame([{
+            'Date': b.date, 'Open': b.open, 'High': b.high,
+            'Low': b.low, 'Close': b.close, 'Volume': b.volume,
+        } for b in live_bars])
+        window_df['Date'] = pd.to_datetime(window_df['Date'])
+        window_df.set_index('Date', inplace=True)
+
+        # Take-profit first — if it fires, skip the trailing-stop check this tick, there's
+        # nothing left to trail.
+        tp_time, tp_price = scan_take_profit(
+            window_df, trade['entry_time'], trade['entry_price'], trade['direction'], trade['take_profit_pct'],
+        )
+        if tp_price is not None:
+            logger.info(f'{GREEN}Client-side take-profit hit for {SYMBOL} at {tp_price:.4f} — closing.{RESET}')
+            try:
+                gw.close_position(trade['contract'])
+            except ValueError as e:
+                logger.warning(f'{YELLOW}Could not close {SYMBOL}: {e}{RESET}')
+            return
+
+        extreme, exit_time, exit_price = scan_trailing_stop(
+            window_df, trade['entry_time'], trade['entry_price'], trade['direction'],
+            trade['trail_stop_loss'], extreme=trade['extreme'],
+        )
+        trade['extreme'] = extreme
+        if exit_price is not None:
+            logger.info(f'{YELLOW}Client-side trailing stop hit for {SYMBOL} at {exit_price:.4f} '
+                        f'(extreme={extreme:.4f}) — closing.{RESET}')
+            try:
+                gw.close_position(trade['contract'])
+            except ValueError as e:
+                logger.warning(f'{YELLOW}Could not close {SYMBOL}: {e}{RESET}')
+
+    gw.on_realtime_bar(_on_realtime_bar)
+
     try:
-        #1. Pobiera paramtry strategii z configs.py:
+        #1. Pobiera parametry strategii z configs.py:
         params     = params_lookup.get_params(cfg.PARAMS, 'MomentumV8Strategy', SYMBOL, TIMEFRAME)
         pd.set_option('display.max_rows', None)
         logger.debug(f'Parameters for {SYMBOL}: {params}')
@@ -173,6 +204,7 @@ def main():
         vol_multiplier = params.get('vol_multiplier', 1.5)
         price_move_pct = params.get('price_move_pct', 1.0)
         trail_stop_pct = params.get('trail_stop_pct', 0.2)
+        body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
         tick_size = params.get('tick_size', 0.01)
 
         #2. Calculating timings for fetching data:
@@ -199,6 +231,12 @@ def main():
         last_fetch = 0
         last_processed_candle = None
         contract = gw.make_stock_contract(SYMBOL, currency=currency_par)
+
+        #3b. Subscribe to live 5s bars — feeds the client-side trailing-stop check in
+        # _on_realtime_bar(); entries below still run off the historical TIMEFRAME poll.
+        realtime_req_id = gw.start_realtime_bars(contract, what_to_show='TRADES', use_rth=True)
+        logger.info(f'Subscribed to live 5s bars for {SYMBOL} (reqId={realtime_req_id}).')
+
         while True:
             # Interleave sleep and plt.pause (GUI) so the plot window stays responsive.
             for _ in range(CHECK_INTERVAL):
@@ -224,9 +262,23 @@ def main():
                 if candle_time == last_processed_candle:
                     logger.debug(f'{YELLOW}Candle {candle_time} already processed, skipping.{RESET}')
                 else:
-                    #Entry logic
-                    signal, price, trail_stop_loss = buy_or_sell(df, vol_multiplier, price_move_pct, trail_stop_pct)
-                    execute_trade(gw, SYMBOL, signal, contract, QUANTITY, price, trail_stop_loss, tick_size)
+                    #Entry logic — still historical-data-driven, per signal_checks.check_vol_price_body()
+                    signal, price, trail_stop_loss, _debug, _flags = check_vol_price_body(
+                        df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+                    result = execute_trade(gw, SYMBOL, signal, contract, QUANTITY, price, trail_stop_loss, tick_size)
+                    if result is not None:
+                        entry, trail = result
+                        trade_state['trade'] = {
+                            'contract': contract,
+                            'direction': 'long' if signal == 'BUY' else 'short',
+                            'entry_price': entry.orderStatus.avgFillPrice,
+                            'entry_time': datetime.datetime.now(datetime.timezone.utc),
+                            'entry_order_id': entry.order.orderId,
+                            'trail_stop_loss': trail_stop_loss,
+                            'extreme': entry.orderStatus.avgFillPrice,
+                            'take_profit_pct': trail_stop_loss * TAKE_PROFIT_RR,
+                        }
+                        trade_state['bars_since_check'] = 0
                     last_processed_candle = candle_time
                 
                 #6. printing positions
@@ -243,6 +295,8 @@ def main():
     except KeyboardInterrupt:
         logger.info('Stopped by user.')
     finally:
+        if realtime_req_id is not None:
+            gw.stop_realtime_bars(realtime_req_id)
         gw.disconnect()
 
 

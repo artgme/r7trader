@@ -1,5 +1,13 @@
 # r7trader — Strategy Execution Flow
 
+## Setup
+
+Activate the virtual environment before running any script:
+
+```bash
+source .venv/bin/activate
+```
+
 ## Architecture Overview
 
 Two threads run concurrently inside `Mozg.run()`:
