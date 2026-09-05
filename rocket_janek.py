@@ -184,15 +184,13 @@ def main():
     symbol_by_req_id: dict[int, str] = {}
     realtime_req_id_by_symbol: dict[str, int] = {}
 
+
+    #zapisuje kazdy fill do logu i usuwa z open_trades jesli to exit fill
     def _on_fill(trade, fill):
         logger.info(
             f'FILL: {fill.execution.side} {fill.execution.shares} {trade.contract.symbol} '
             f'@ {fill.execution.avgPrice:.4f} | orderId={fill.execution.orderId}'
         )
-        # Any fill that isn't the tracked entry order is an exit — whether triggered by our own
-        # client-side check (close_position), the broker-side TRAIL firing on its own, or
-        # close_all_positions() flattening ahead of the close. Either way, stop tracking so the
-        # next bar doesn't try to close an already-flat position.
         symbol = trade.contract.symbol
         open_trade = open_trades.get(symbol)
         if open_trade is not None and fill.execution.orderId != open_trade['entry_order_id']:
@@ -201,6 +199,7 @@ def main():
 
     gw.on_fill(_on_fill)
 
+    # Fires na kazdym 5-sekundowym barze, aktualizuje trailing stop i sprawdza take-profit. Wykonuje zamkniecie pozycji jesli warunki sa spelnione.
     def _on_realtime_bar(reqId, bar):
         symbol = symbol_by_req_id.get(reqId)
         if symbol is None:
@@ -247,10 +246,10 @@ def main():
             except ValueError as e:
                 logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
 
-    gw.on_realtime_bar(_on_realtime_bar)
+    gw.on_realtime_bar(_on_realtime_bar) #appends the function to the list of callbacks
 
     try:
-        #1. Pobiera paramtry strategii z configs.py:
+        #1. Pobiera parametry strategii z configs.py:
         config     = importlib.import_module(CONFIG_MODULE)
         pd.set_option('display.max_rows', None)
 

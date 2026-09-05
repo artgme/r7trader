@@ -24,10 +24,10 @@ def check_vol_price_body(df: pd.DataFrame, vol_multiplier: float, price_move_pct
     current_pct = df['candle_pct'].iloc[-2]
     mean_abs_change = df['candle_pct'].abs().iloc[:-2].mean()
     #trail_stop_loss = max(mean_abs_change * trail_stop_pct, 0.1)
-    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.4), 3.0)
+    trail_stop_loss = min(max(mean_abs_change * trail_stop_pct, 0.4), 7.0)
     logger.info(f"{YELLOW}Trail stop loss: {trail_stop_loss:.2f}% {RESET}")
     #print(f'Mean absolute change: {mean_abs_change:.2f}%')
-    mean_volume = df['Volume'].mean()
+    mean_volume = df['Volume'].iloc[:-2].mean()
 
     volume_threshold = mean_volume * vol_multiplier
     price_threshold = mean_abs_change * price_move_pct

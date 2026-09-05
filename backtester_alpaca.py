@@ -19,7 +19,7 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from common import timeframe_to_seconds, RED, GREEN, WHITE, RESET
-from signal_checks import check_vol_price_body, scan_trailing_stop
+from signal_checks import check_vol_price_body, scan_trailing_stop, scan_take_profit
 import configs_rocketJanek as cfg
 
 load_dotenv()
@@ -28,22 +28,39 @@ ALPACA_SECRET_KEY = os.environ.get('ALPACA_API_SECRET')
 
 TICKER = 'RKLB'
 CURRENCY = 'USD'
-TIMEFRAME = '30m'
+TIMEFRAME = '10m'
 START_DT = datetime.datetime(2026, 7, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
 END_DAY = datetime.date(2026, 7, 14)
 QUANTITY = 10
 FETCH_AND_PLOT = 1
 
+TAKE_PROFIT_PCT = 2.0  # experiment: flat take-profit target for now — will become a tuner1.py
+                        # grid-search parameter later, same as trail_stop_pct
+CLOSE_BEFORE_SECONDS = 1200  # how far ahead of RTH_CLOSE to force-close a trade still open at
+                              # end of session — mirrors rocket_janek.py's CLOSE_OVERNIGHT
+
 EXCHANGE_TZ = ZoneInfo('America/New_York')
 RTH_OPEN = datetime.time(9, 30)
 RTH_CLOSE = datetime.time(16, 0)
 
-# action → (marker, color) — copied from printing_results.py, data-source-agnostic
+# action → (marker, color) — shape encodes *why* the trade exited, color encodes direction
+# (lime = long, orange = short), so the plot reads at a glance without a legend lookup.
 MARKER_STYLE = {
     'enter_long':       ('^', 'green'),
     'enter_short':      ('v', 'red'),
     'exit_long_trail':  ('x', 'lime'),
     'exit_short_trail': ('x', 'orange'),
+    'exit_long_tp':     ('*', 'lime'),
+    'exit_short_tp':    ('*', 'orange'),
+    'exit_long_eod':    ('s', 'lime'),
+    'exit_short_eod':   ('s', 'orange'),
+}
+
+# trade['exit_reason'] -> the MARKER_STYLE suffix for that exit
+_EXIT_REASON_SUFFIX = {
+    'trail_stop':    'trail',
+    'take_profit':   'tp',
+    'session_close': 'eod',
 }
 
 
@@ -93,26 +110,39 @@ def fetch_range(client: StockHistoricalDataClient, ticker: str, start_day: datet
 
 # Usage: marker_trades = to_marker_trades(trades)
 def to_marker_trades(trades: list[dict]) -> list[dict]:
-    """Convert run_backtest()'s trade dicts into the enter/exit marker format fetch_and_plot() expects."""
+    """Convert run_backtest()'s trade dicts into the enter/exit marker format fetch_and_plot()
+    expects. The exit marker's shape reflects exit_reason (trail_stop / take_profit /
+    session_close), defaulting to 'trail' for any older trade dict that predates that field."""
     marker_trades = []
     for t in trades:
-        entry_action = 'enter_long' if t['direction'] == 'long' else 'enter_short'
-        marker_trades.append({'date': t['entry_time'], 'action': entry_action, 'price': t['entry_price']})
+        side = 'long' if t['direction'] == 'long' else 'short'
+        marker_trades.append({'date': t['entry_time'], 'action': f'enter_{side}', 'price': t['entry_price']})
         if t['exit_time'] is not None:
-            exit_action = 'exit_long_trail' if t['direction'] == 'long' else 'exit_short_trail'
-            marker_trades.append({'date': t['exit_time'], 'action': exit_action, 'price': t['exit_price']})
+            suffix = _EXIT_REASON_SUFFIX.get(t.get('exit_reason'), 'trail')
+            marker_trades.append({'date': t['exit_time'], 'action': f'exit_{side}_{suffix}', 'price': t['exit_price']})
     return marker_trades
+
+
+# Usage: cutoff = _session_close_cutoff(entry_time)
+def _session_close_cutoff(entry_time) -> datetime.datetime:
+    """15:40 ET (RTH_CLOSE - CLOSE_BEFORE_SECONDS) on entry_time's calendar day. Mirrors
+    rocket_janek.py's CLOSE_OVERNIGHT cutoff."""
+    close_dt = datetime.datetime.combine(entry_time.date(), RTH_CLOSE, tzinfo=EXCHANGE_TZ)
+    return close_dt - datetime.timedelta(seconds=CLOSE_BEFORE_SECONDS)
 
 
 # Usage: trades, checks = run_backtest(symbol, low_df, high_df, start_dt, timeframe, vol_len,
 #                                       vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, quantity)
 def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start_dt, timeframe: str,
                   vol_len: int, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float,
-                  body_ratio_threshold: float, quantity: float) -> tuple[list[dict], list[dict]]:
+                  body_ratio_threshold: float, quantity: float,
+                  take_profit_pct: float = TAKE_PROFIT_PCT) -> tuple[list[dict], list[dict]]:
     """Walk low_df candle-by-candle, calling check_vol_price_body() on each closed candle while flat —
     same window shape as the live loop (iloc[-2] = signal candle, iloc[-1] = next candle,
     standing in for the still-forming candle a live fetch would see). On a signal, fills at
-    the next available 1m price and scans high_df for a trailing-stop exit before resuming.
+    the next available 1m price, then scans high_df for whichever of the trailing stop or the
+    take-profit target is hit first (bounded to the same trading session — see
+    _session_close_cutoff), force-closing at the session cutoff if neither fires.
     Returns (trades, checks) — checks records every candle evaluated while flat, signal or not,
     so a day with zero trades still shows why nothing fired."""
     bar_duration = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
@@ -162,12 +192,41 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
         entry_price = entry_bars.iloc[0]['Open']
         direction = 'long' if signal == 'BUY' else 'short'
 
-        # Walk 1m bars forward until the trailing stop is hit (or data runs out).
-        _, exit_time, exit_price = scan_trailing_stop(high_df, entry_time, entry_price, direction, trail_stop_loss)
+        # Bound the scan to this trading session only, so a trade that never hits its stop or
+        # target doesn't ride into the next day (previously it could scan past session boundaries
+        # indefinitely, and if it never resolved before high_df ran out the whole backtest loop
+        # would just stop — see the `break` this replaces below). Mirrors rocket_janek.py's
+        # CLOSE_OVERNIGHT, which flattens any still-open live position at the same cutoff.
+        session_cutoff = _session_close_cutoff(entry_time)
+        window = high_df[(high_df.index >= entry_time) & (high_df.index <= session_cutoff)]
+
+        # Scan for both exits over the same bounded window and take whichever actually happens
+        # first, by time. This differs from the live tick-by-tick callback, which can just check
+        # take-profit before the trailing stop every tick (each tick only spans ~1 minute, so
+        # "checked first" and "happened first" are almost always the same thing there). Here we're
+        # scanning a whole multi-hour window in one shot, so that shortcut doesn't hold — we have
+        # to compare the two candidate exit times directly to find the true first-in-time exit.
+        _, sl_time, sl_price = scan_trailing_stop(window, entry_time, entry_price, direction, trail_stop_loss)
+        tp_time, tp_price = scan_take_profit(window, entry_time, entry_price, direction, take_profit_pct)
+
+        if sl_price is not None and (tp_price is None or sl_time <= tp_time):
+            exit_time, exit_price, exit_reason = sl_time, sl_price, 'trail_stop'
+        elif tp_price is not None:
+            exit_time, exit_price, exit_reason = tp_time, tp_price, 'take_profit'
+        else:
+            # Neither fired within the session — force-close at the last available bar at/before
+            # the cutoff (its Close), same as rocket_janek.py's CLOSE_OVERNIGHT would.
+            eod_bars = window[window.index <= session_cutoff]
+            if eod_bars.empty:
+                # Entry itself landed after the cutoff (a signal very late in the session) —
+                # nothing left to hold, so it's flattened immediately at the entry price itself.
+                exit_time, exit_price, exit_reason = entry_time, entry_price, 'session_close'
+            else:
+                exit_time, exit_price, exit_reason = eod_bars.index[-1], eod_bars.iloc[-1]['Close'], 'session_close'
+
+        pnl = None
         if exit_price is not None:
             pnl = (exit_price - entry_price) * quantity if direction == 'long' else (entry_price - exit_price) * quantity
-        else:
-            pnl = None
 
         trades.append({
             'symbol': symbol,
@@ -176,16 +235,34 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
             'entry_time': entry_time,
             'entry_price': entry_price,
             'trail_stop_pct': trail_stop_loss,
+            'take_profit_pct': take_profit_pct,
             'exit_time': exit_time,
             'exit_price': exit_price,
+            'exit_reason': exit_reason,
             'quantity': quantity,
             'pnl': pnl,
         })
 
         if exit_time is None:
-            break  # position never closed before the data ran out
-        # Resume scanning for the next signal once flat again.
-        i = low_df.index.searchsorted(exit_time, side='left')
+            # Shouldn't happen given the session-close fallback above — guard against silently
+            # truncating the whole backtest on one unresolved trade, which is the bug this
+            # session-close logic exists to fix in the first place.
+            i += 1
+            continue
+
+        if exit_reason == 'session_close':
+            # A forced end-of-session close means we're done trading for the *rest of this day*
+            # too (e.g. 15:40-16:00) — resuming with searchsorted() would just pick right back up
+            # in that closing window and could open a same-day follow-on trade seconds after we
+            # just flattened for the night. Skip straight to the next day that actually has bars
+            # (naturally skipping weekends/holidays, since we're indexing into low_df itself).
+            later_days = low_df.index[low_df.index.date > exit_time.date()]
+            if later_days.empty:
+                break  # that was the last day of data — nothing left to scan
+            i = low_df.index.get_loc(later_days[0])
+        else:
+            # Resume scanning for the next signal once flat again.
+            i = low_df.index.searchsorted(exit_time, side='left')
 
     return trades, checks
 
@@ -331,13 +408,14 @@ def fetch_and_plot(client: StockHistoricalDataClient, ticker: str, trades: list[
 # Usage: printing_trades(TICKER, START_DT, END_DAY, TIMEFRAME, trades)
 def printing_trades(ticker: str, start_dt, end_day, timeframe: str, trades: list[dict]) -> None:
     print(f'\n{ticker} backtest (Alpaca data): {start_dt} to {end_day}, {timeframe} signal / 1m exit, {len(trades)} trade(s)')
-    print(f"\n  {'#':>3}  {'direction':9}  {'signal_time':25}  {'entry_time':25}  {'entry_price':>11}  {'exit_time':25}  {'exit_price':>10}  {'trail_stop_pct':>15}  {'pnl':>10}  {'cum':>10}")
+    print(f"\n  {'#':>3}  {'direction':9}  {'signal_time':25}  {'entry_time':25}  {'entry_price':>11}  {'exit_time':25}  {'exit_price':>10}  {'exit_reason':14}  {'trail_stop_pct':>15}  {'take_profit_pct':>16}  {'pnl':>10}  {'cum':>10}")
     cumulative = 0.0
     for i, t in enumerate(trades, 1):
         # Pad the plain text to fixed width first, then wrap in color — ANSI codes would
         # otherwise count toward the f-string width and break column alignment.
         exit_time_str = str(t['exit_time']) if t['exit_time'] is not None else 'OPEN (never exited)'
         exit_price_str = f"{t['exit_price']:>10.2f}" if t['exit_price'] is not None else f"{'n/a':>10}"
+        exit_reason_str = t.get('exit_reason') or 'n/a'
         if t['pnl'] is not None:
             cumulative += t['pnl']
             pnl_color = GREEN if t['pnl'] >= 0 else RED
@@ -348,8 +426,8 @@ def printing_trades(ticker: str, start_dt, end_day, timeframe: str, trades: list
             pnl_str = f"{'n/a':>10}"
             cum_str = f"{'n/a':>10}"
         print(f"  {i:>3}  {t['direction']:9}  {str(t['signal_time']):25}  {str(t['entry_time']):25}  "
-              f"{t['entry_price']:>11.2f}  {exit_time_str:25}  {exit_price_str}  "
-              f"{t['trail_stop_pct']:>14.2f}%  {pnl_str}  {cum_str}")
+              f"{t['entry_price']:>11.2f}  {exit_time_str:25}  {exit_price_str}  {exit_reason_str:14}  "
+              f"{t['trail_stop_pct']:>14.2f}%  {t['take_profit_pct']:>15.2f}%  {pnl_str}  {cum_str}")
 
 
 # Usage: printing_checks(checks)
@@ -395,7 +473,7 @@ def main():
     vol_len = 10
     vol_multiplier = 1.8
     price_move_pct = 1.5
-    trail_stop_pct = 1.8
+    trail_stop_pct = 1.5 #to even 3.5
     body_ratio_threshold = 0.5
 
     trades, checks = run_backtest(TICKER, low_df, high_df, START_DT, TIMEFRAME, vol_len,
