@@ -22,7 +22,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from backtester_alpaca import fetch_range, run_backtest, ALPACA_API_KEY, ALPACA_SECRET_KEY
 from logging_functions import log_tuning_csv, EXCHANGE_TZ
 
-FOUND_PARAMS_FILE = Path('tuner1_found_params4.py')
+FOUND_PARAMS_FILE = Path('tuner1_found_params5.py')
 
 # Top 50 from Potential_2026-07-18_81690.csv, ranked by |1-day price change %| x relative
 # volume (matches what check_vol_price_body() actually detects: a big move backed by unusual volume),
@@ -54,18 +54,105 @@ BODY_RATIO_THRESHOLD_RANGE = [0.3, 0.5, 0.7]
 TAKE_PROFIT_PCT_RANGE = [1.0, 1.5, 2.0]  # starting range — narrow in once a promising region shows up
 
 
+# --- score_trades / combined_score tuning knobs ------------------------------------------------
+MIN_TRADES_FULL_CONFIDENCE = 30  # trade_count at which combined_score stops being discounted for
+                                  # a small sample (it ramps linearly from 0 trades up to here)
+# Reference "this is a solid combo" values — each risk-adjusted term of combined_score is divided
+# by its reference and clipped to [-2, 3] before weighting, so the three land on a common scale
+# and no single blown-up ratio can dominate. Raise a reference to make that term harder to max out.
+REF_SORTINO = 0.3          # per-trade Sortino ratio
+REF_RECOVERY = 3.0         # total P&L as a multiple of max drawdown
+REF_PROFIT_FACTOR = 2.5    # gross wins / gross losses
+W_SORTINO, W_RECOVERY, W_PROFIT_FACTOR = 0.40, 0.35, 0.25  # blend weights, should sum to 1
+_SCORE_KEYS = ('total_pnl', 'trade_count', 'win_rate', 'expectancy', 'max_drawdown',
+               'profit_factor', 'sharpe', 'sortino', 'recovery_factor', 'combined_score')
+_LOWER_IS_BETTER = ('max_drawdown',)  # every other score key is higher-is-better
+
+# The one metric save_best_params(), the per-ticker result sort, and print_ticker_ranking() all
+# rank by. Change this to retarget what "best" means — any of _SCORE_KEYS (e.g. 'expectancy',
+# 'sortino', 'combined_score').
+SELECTION_METRIC = 'sortino'#combined_score, total_pnl, win_rate, expectancy, max_drawdown, profit_factor, sharpe, sortino, recovery_factor
+# ---------------------------------------------------------------------------------------------
+
+
+# Usage: results.sort(key=rank_key('combined_score'), reverse=True)
+def rank_key(metric: str):
+    """A sort/max key for `metric` that always means 'best first' under reverse=True / max() —
+    the sign is flipped for the lower-is-better metrics (max_drawdown) so callers never special-case."""
+    if metric not in _SCORE_KEYS:
+        raise ValueError(f"metric must be one of {_SCORE_KEYS}")
+    sign = -1 if metric in _LOWER_IS_BETTER else 1
+    return lambda r: sign * r[metric]
+
+
 # Usage: score = score_trades(trades)
 def score_trades(trades: list[dict]) -> dict:
-    """Summarize one backtest run's trades. Total P&L alone can reward a combo that just
-    caught one lucky trade — trade_count and win_rate come along so that can be spotted.
-    expectancy (P&L per trade) rewards combos that are profitable *and* consistent, without
-    the scale-mismatch or early-exit bias of weighting win_rate directly against total_pnl."""
+    """Summarize one backtest run's trades into a dict of performance metrics (keys: _SCORE_KEYS).
+
+    Base:  total_pnl / trade_count / win_rate / expectancy (P&L per trade) — headline P&L and
+           how it was earned. Total P&L alone can reward a combo that caught one lucky trade;
+           trade_count and win_rate let that be spotted.
+    Risk:  max_drawdown    — deepest peak-to-trough dip (in $) of the cumulative-P&L curve with
+                             trades walked in order; the worst unrealized loss you'd sit through.
+           profit_factor   — gross wins / gross losses; >1 profitable, 2+ strong. inf if there is
+                             no losing trade (sorts to the top — filter it when that matters).
+           sharpe / sortino — mean per-trade return over its std (Sharpe) or over downside
+                             deviation only (Sortino). Per-trade return is P&L / capital-tied-up,
+                             so it's comparable across price levels. Risk-free rate 0, NOT
+                             annualized — per-trade ratios for ranking combos, not annual figures.
+           recovery_factor — total_pnl / max_drawdown (Calmar-style): profit per $ of worst dip.
+    Blend: combined_score  — the single number to rank combos by: a small-sample-discounted,
+                             weighted blend of Sortino, recovery_factor and profit_factor, each
+                             scaled against its REF_* value (see the module constants above).
+                             Negative for losing combos, pulled toward 0 for under-traded ones."""
     closed = [t for t in trades if t['pnl'] is not None]
-    total_pnl = sum(t['pnl'] for t in closed)
-    wins = sum(1 for t in closed if t['pnl'] > 0)
-    win_rate = wins / len(closed) if closed else 0.0
-    expectancy = total_pnl / len(closed) if closed else 0.0
-    return {'total_pnl': total_pnl, 'trade_count': len(closed), 'win_rate': win_rate, 'expectancy': expectancy}
+    n = len(closed)
+    if n == 0:
+        return {**dict.fromkeys(_SCORE_KEYS, 0.0), 'trade_count': 0}
+
+    pnl = np.array([t['pnl'] for t in closed], dtype=float)
+    capital = np.array([t['entry_price'] * t['quantity'] for t in closed], dtype=float)
+    ret = pnl / capital  # per-trade return on the capital that trade tied up
+
+    total_pnl = float(pnl.sum())
+    wins, losses = pnl[pnl > 0], pnl[pnl < 0]
+    win_rate = len(wins) / n
+    expectancy = total_pnl / n
+
+    equity = np.cumsum(pnl)
+    max_drawdown = float((np.maximum.accumulate(equity) - equity).max())
+
+    gross_loss = float(-losses.sum())
+    profit_factor = float(wins.sum()) / gross_loss if gross_loss > 0 else np.inf
+
+    ret_std = ret.std(ddof=1) if n > 1 else 0.0
+    sharpe = float(ret.mean() / ret_std) if ret_std > 0 else 0.0
+    downside = ret[ret < 0]
+    downside_dev = float(np.sqrt(np.sum(downside ** 2) / n)) if downside.size else 0.0
+    sortino = float(ret.mean() / downside_dev) if downside_dev > 0 else 0.0
+
+    recovery_factor = total_pnl / max_drawdown if max_drawdown > 0 else np.inf
+
+    # Blend: scale each term against its reference, clip, weight, discount for small samples.
+    # A non-finite ratio (no losing trade / no drawdown) is treated as "way past solid" → clip ceiling.
+    sample_conf = min(n / MIN_TRADES_FULL_CONFIDENCE, 1.0)
+    t_sortino = np.clip(sortino / REF_SORTINO, -2.0, 3.0)
+    t_recovery = np.clip((recovery_factor if np.isfinite(recovery_factor) else 9 * REF_RECOVERY) / REF_RECOVERY, -2.0, 3.0)
+    t_pf = np.clip(((profit_factor if np.isfinite(profit_factor) else 9 * REF_PROFIT_FACTOR) - 1.0) / (REF_PROFIT_FACTOR - 1.0), -2.0, 3.0)
+    combined_score = float(sample_conf * (W_SORTINO * t_sortino + W_RECOVERY * t_recovery + W_PROFIT_FACTOR * t_pf))
+
+    return {
+        'total_pnl': total_pnl,
+        'trade_count': n,
+        'win_rate': win_rate,
+        'expectancy': expectancy,
+        'max_drawdown': max_drawdown,
+        'profit_factor': float(profit_factor),
+        'sharpe': sharpe,
+        'sortino': sortino,
+        'recovery_factor': float(recovery_factor),
+        'combined_score': combined_score,
+    }
 
 
 # Usage: results = tune_ticker(ticker, low_df, high_df)
@@ -102,12 +189,14 @@ def tune_ticker(ticker: str, low_df, high_df) -> list[dict]:
 
 # Usage: print_results_table('RKLB', results)
 def print_results_table(ticker: str, results: list[dict]) -> None:
-    """Print the top TOP_N combos for one ticker, ranked by total P&L (results must already be sorted)."""
-    print(f'\n=== {ticker}: top {min(TOP_N, len(results))} of {len(results)} combos, ranked by total P&L ===')
-    print(f"  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'tp_pct':>7}  {'body_ratio':>11}  {'trades':>7}  {'win_rate':>9}  {'total_pnl':>10}  {'expectancy':>11}")
+    """Print the top TOP_N combos for one ticker, ranked by SELECTION_METRIC (results must already be sorted)."""
+    print(f'\n=== {ticker}: top {min(TOP_N, len(results))} of {len(results)} combos, ranked by {SELECTION_METRIC} ===')
+    print(f"  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'tp_pct':>7}  {'body_ratio':>11}  "
+          f"{'trades':>7}  {'win_rate':>9}  {'total_pnl':>10}  {'expectancy':>11}  {'max_dd':>9}  {'sortino':>8}  {'score':>8}")
     for r in results[:TOP_N]:
         print(f"  {r['vol_len']:>7d}  {r['vol_multiplier']:>9.2f}  {r['price_move_pct']:>10.2f}  {r['trail_stop_pct']:>10.2f}  "
-              f"{r['take_profit_pct']:>7.2f}  {r['body_ratio_threshold']:>11.2f}  {r['trade_count']:>7d}  {r['win_rate']:>8.0%}  {r['total_pnl']:>+10.2f}  {r['expectancy']:>+11.2f}")
+              f"{r['take_profit_pct']:>7.2f}  {r['body_ratio_threshold']:>11.2f}  {r['trade_count']:>7d}  {r['win_rate']:>8.0%}  "
+              f"{r['total_pnl']:>+10.2f}  {r['expectancy']:>+11.2f}  {r['max_drawdown']:>9.2f}  {r['sortino']:>8.2f}  {r['combined_score']:>+8.2f}")
 
 
 def _load_found_params() -> dict:
@@ -132,10 +221,10 @@ def _write_found_params(all_params: dict) -> None:
 
 # Usage: save_best_params('RKLB', results)
 def save_best_params(ticker: str, results: list[dict]) -> None:
-    """Pick the combo with the best expectancy for this ticker and write it into
-    tuner1_found_params.py, in the same PARAMS[strategy][ticker][timeframe] shape as
-    configs_rocketJanek.py — merging with whatever's already there for other tickers."""
-    best = max(results, key=lambda r: r['expectancy'])
+    """Pick this ticker's best combo by SELECTION_METRIC and write it into tuner1_found_params.py,
+    in the same PARAMS[strategy][ticker][timeframe] shape as configs_rocketJanek.py — merging
+    with whatever's already there for other tickers."""
+    best = max(results, key=rank_key(SELECTION_METRIC))
     params = {
         'vol_len': best['vol_len'],
         'vol_multiplier': best['vol_multiplier'],
@@ -148,30 +237,32 @@ def save_best_params(ticker: str, results: list[dict]) -> None:
     all_params = _load_found_params()
     all_params.setdefault('MomentumV8Strategy', {}).setdefault(ticker, {})[TIMEFRAME] = params
     _write_found_params(all_params)
-    logger.info('Saved best params for %s (%s, expectancy %+.2f) to %s: %s',
-                ticker, TIMEFRAME, best['expectancy'], FOUND_PARAMS_FILE, params)
+    logger.info('Saved best params for %s (%s, %s %+.3f) to %s: %s',
+                ticker, TIMEFRAME, SELECTION_METRIC, best[SELECTION_METRIC], FOUND_PARAMS_FILE, params)
 
 
 # Usage: plot_3d('RKLB', results, 'vol_multiplier', 'price_move_pct', 'total_pnl')
 def plot_3d(ticker: str, results: list[dict], param_x: str, param_y: str, z_metric: str) -> None:
-    """3D surface of 2 tuned parameters (x, y) against a chosen performance metric (z_metric,
-    'total_pnl', 'win_rate', or 'expectancy'). Each grid point is the best z_metric found
-    across all values of the other 3 tuned parameters for that (x, y) combination. Builds the
-    figure but doesn't show it — call plt.show() once after plotting every ticker so none of
-    them block in turn."""
-    if z_metric not in ('total_pnl', 'win_rate', 'expectancy'):
-        raise ValueError("z_metric must be 'total_pnl', 'win_rate', or 'expectancy'")
+    """3D surface of 2 tuned parameters (x, y) against a chosen performance metric (z_metric, any
+    of _SCORE_KEYS). Each grid point is the best z_metric found across all values of the other 3
+    tuned parameters for that (x, y) combination. Builds the figure but doesn't show it — call
+    plt.show() once after plotting every ticker so none of them block in turn."""
+    if z_metric not in _SCORE_KEYS:
+        raise ValueError(f"z_metric must be one of {_SCORE_KEYS}")
+    pick = min if z_metric in _LOWER_IS_BETTER else max
 
     best = {}
     for r in results:
+        v = r[z_metric]
+        if not np.isfinite(v):  # inf profit_factor / recovery_factor
+            continue
         key = (r[param_x], r[param_y])
-        if key not in best or r[z_metric] > best[key]:
-            best[key] = r[z_metric]
+        best[key] = v if key not in best else pick(best[key], v)
 
     xs = sorted({x for x, y in best})
     ys = sorted({y for x, y in best})
     X, Y = np.meshgrid(xs, ys)
-    Z = np.array([[best[(x, y)] for x in xs] for y in ys])
+    Z = np.array([[best.get((x, y), np.nan) for x in xs] for y in ys])
 
     fig = plt.figure(figsize=(9, 7))
     ax = fig.add_subplot(projection='3d')
@@ -183,16 +274,13 @@ def plot_3d(ticker: str, results: list[dict], param_x: str, param_y: str, z_metr
     fig.colorbar(surf, label=z_metric)
 
 
-# Usage: print_ticker_ranking(results_by_ticker, 'expectancy')
-def print_ticker_ranking(results_by_ticker: dict[str, list[dict]], metric: str = 'expectancy') -> None:
-    """Rank tickers by their own best combo's value of `metric` (default 'expectancy'), best
+# Usage: print_ticker_ranking(results_by_ticker, 'combined_score')
+def print_ticker_ranking(results_by_ticker: dict[str, list[dict]], metric: str = SELECTION_METRIC) -> None:
+    """Rank tickers by their own best combo's value of `metric` (default SELECTION_METRIC), best
     ticker first. The best combo is independently reselected using `metric` for each ticker,
     so switching metrics always reflects that metric's own best pick, not a stale one."""
-    if metric not in ('total_pnl', 'win_rate', 'expectancy'):
-        raise ValueError("metric must be 'total_pnl', 'win_rate', or 'expectancy'")
-
-    best_per_ticker = {ticker: max(results, key=lambda r: r[metric]) for ticker, results in results_by_ticker.items()}
-    ranked = sorted(best_per_ticker.items(), key=lambda kv: kv[1][metric], reverse=True)
+    best_per_ticker = {ticker: max(results, key=rank_key(metric)) for ticker, results in results_by_ticker.items()}
+    ranked = sorted(best_per_ticker.items(), key=lambda kv: rank_key(metric)(kv[1]), reverse=True)
 
     print(f'\n=== Ticker ranking by {metric} (best combo per ticker) ===')
     print(f"  {'#':>3}  {'ticker':6}  {metric:>11}  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'tp_pct':>7}  {'body_ratio':>11}")
@@ -221,14 +309,14 @@ def main():
 
         results = tune_ticker(ticker, low_df, high_df)
         log_tuning_csv(TUNING_LOG, ticker, TIMEFRAME, START_DT, END_DAY, results)
-        results.sort(key=lambda r: r['total_pnl'], reverse=True)
+        results.sort(key=rank_key(SELECTION_METRIC), reverse=True)
         print_results_table(ticker, results)
         save_best_params(ticker, results)
         results_by_ticker[ticker] = results
         #plot_3d(ticker, results, 'vol_multiplier', 'price_move_pct', 'expectancy')
         plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy')
 
-    print_ticker_ranking(results_by_ticker, 'expectancy')
+    print_ticker_ranking(results_by_ticker)
     plt.show()  # blocks once, here, after every ticker's figure has been built
 
 

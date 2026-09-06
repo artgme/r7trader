@@ -55,13 +55,19 @@ def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: fl
         ])
 
 
-_LEGACY_TAKE_PROFIT_PCT = 2.0  # backtester_alpaca.TAKE_PROFIT_PCT's value before the sweep was
+_LEGACY_TAKE_PROFIT_PCT = 2.0  # backtester_alpaca's flat take-profit default before the sweep was
                                 # added — used only as a fallback when reloading an older tuning
                                 # log that predates the take_profit_pct column
 
 _TUNING_CSV_HEADERS = ['tuned_at', 'ticker', 'timeframe', 'run_start', 'run_end',
                        'vol_len', 'vol_multiplier', 'price_move_pct', 'trail_stop_pct', 'body_ratio_threshold',
-                       'take_profit_pct', 'trade_count', 'win_rate', 'total_pnl', 'expectancy']
+                       'take_profit_pct', 'trade_count', 'win_rate', 'total_pnl', 'expectancy',
+                       'max_drawdown', 'profit_factor', 'sharpe', 'sortino', 'recovery_factor', 'combined_score']
+
+# Score columns added after the first sweeps — load_tuning_log() fills them with NaN for any
+# older log that predates them (they can't be recomputed without the per-trade data).
+_TUNING_SCORE_COLS = ['trade_count', 'win_rate', 'total_pnl', 'expectancy',
+                      'max_drawdown', 'profit_factor', 'sharpe', 'sortino', 'recovery_factor', 'combined_score']
 
 
 def init_tuning_log(log_path: Path):
@@ -86,17 +92,19 @@ def log_tuning_csv(log_path: Path, ticker: str, timeframe: str, run_start, run_e
                 tuned_at, ticker, timeframe, run_start, run_end,
                 r['vol_len'], r['vol_multiplier'], r['price_move_pct'], r['trail_stop_pct'], r['body_ratio_threshold'],
                 r['take_profit_pct'], r['trade_count'], r['win_rate'], r['total_pnl'], r['expectancy'],
+                r['max_drawdown'], r['profit_factor'], r['sharpe'], r['sortino'], r['recovery_factor'], r['combined_score'],
             ])
 
 
 # Usage: results_by_ticker = load_tuning_log(Path('tuning_logs/tuning_30m_20260726_1400.csv'))
 def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
     """Reconstructs the results_by_ticker shape tuner1.py builds in-memory, so plot_3d() and
-    print_ticker_ranking() work unmodified on a log reloaded in a later session."""
+    print_ticker_ranking() work unmodified on a log reloaded in a later session. Score columns
+    a log predates (see _TUNING_SCORE_COLS) come back as NaN — they can't be recomputed here."""
     results_by_ticker: dict[str, list[dict]] = {}
     with open(log_path, newline='') as f:
         for row in csv.DictReader(f):
-            results_by_ticker.setdefault(row['ticker'], []).append({
+            rec = {
                 'vol_len': int(row['vol_len']),
                 'vol_multiplier': float(row['vol_multiplier']),
                 'price_move_pct': float(row['price_move_pct']),
@@ -104,12 +112,13 @@ def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
                 'body_ratio_threshold': float(row['body_ratio_threshold']),
                 # older logs predate the take_profit_pct sweep -- fall back to backtester_alpaca's
                 # flat default, which is what those runs actually used.
-                'take_profit_pct': float(row['take_profit_pct']) if 'take_profit_pct' in row else _LEGACY_TAKE_PROFIT_PCT,
-                'trade_count': int(row['trade_count']),
-                'win_rate': float(row['win_rate']),
-                'total_pnl': float(row['total_pnl']),
-                'expectancy': float(row['expectancy']),
-            })
+                'take_profit_pct': float(row['take_profit_pct']) if row.get('take_profit_pct') else _LEGACY_TAKE_PROFIT_PCT,
+            }
+            for col in _TUNING_SCORE_COLS:
+                val = row.get(col)
+                rec[col] = float(val) if val not in (None, '') else float('nan')
+            rec['trade_count'] = int(rec['trade_count']) if rec['trade_count'] == rec['trade_count'] else 0  # NaN check
+            results_by_ticker.setdefault(row['ticker'], []).append(rec)
     return results_by_ticker
 
 

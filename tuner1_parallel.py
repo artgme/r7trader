@@ -27,6 +27,7 @@ from logging_functions import log_tuning_csv, EXCHANGE_TZ
 # inner loop is reimplemented here.
 from tuner1 import (
     score_trades, print_results_table, save_best_params, plot_3d, print_ticker_ranking,
+    rank_key, SELECTION_METRIC,
     TICKERS, TIMEFRAME, START_DT, END_DAY, QUANTITY,
     VOL_LEN_RANGE, VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
     TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE,
@@ -119,13 +120,13 @@ def main():
 
         results = tune_ticker(ticker, low_df, high_df)
         log_tuning_csv(TUNING_LOG, ticker, TIMEFRAME, START_DT, END_DAY, results)
-        results.sort(key=lambda r: r['total_pnl'], reverse=True)
+        results.sort(key=rank_key(SELECTION_METRIC), reverse=True)
         print_results_table(ticker, results)
         save_best_params(ticker, results)
         results_by_ticker[ticker] = results
         plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy')
 
-    print_ticker_ranking(results_by_ticker, 'expectancy')
+    print_ticker_ranking(results_by_ticker)
     plt.show()  # blocks once, here, after every ticker's figure has been built
 
 

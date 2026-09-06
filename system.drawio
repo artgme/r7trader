@@ -1,6 +1,6 @@
 <mxfile host="Electron" pages="7">
   <diagram name="class" id="GBsaH2Cb67Y_s1hU67SZ">
-    <mxGraphModel dx="3540" dy="2158" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="1">
+    <mxGraphModel dx="3540" dy="2158" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1850" pageHeight="900" math="0" shadow="1">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -67,10 +67,10 @@
         <mxCell id="sw6t" parent="1" style="text;html=1;fontSize=10;fontStyle=2;align=left;verticalAlign=middle;fontColor=#666666;" value="test / verification script" vertex="1">
           <mxGeometry height="16" width="280" x="1120" y="163" as="geometry" />
         </mxCell>
-        <mxCell id="n1" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="«generated data» tuner1_found_params.py" vertex="1">
+        <mxCell id="n1" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="«generated data» tuner1_found_paramsN.py" vertex="1">
           <mxGeometry height="76" width="300" x="730" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="n1a1" parent="n1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="PARAMS: dict&lt;br&gt;(symbol → timeframe → params)" vertex="1">
+        <mxCell id="n1a1" parent="n1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="PARAMS: dict  (symbol → timeframe → params)&lt;br&gt;FOUND_PARAMS_FILE bumped per sweep (…4, …5, …)" vertex="1">
           <mxGeometry height="46" width="300" y="30" as="geometry" />
         </mxCell>
         <mxCell id="n2" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="«static config» configs_rocketJanek.py" vertex="1">
@@ -92,28 +92,28 @@
           <mxGeometry height="82" width="300" y="102" as="geometry" />
         </mxCell>
         <mxCell id="n4" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#60a917;strokeColor=#2D7600;fontSize=13;fontColor=#ffffff;" value="«module» tuner1.py" vertex="1">
-          <mxGeometry height="184" width="300" x="1100" y="210" as="geometry" />
+          <mxGeometry height="204" width="300" x="1100" y="210" as="geometry" />
         </mxCell>
-        <mxCell id="n4a1" parent="n4" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="TICKERS, TIMEFRAME&lt;br&gt;VOL_LEN/VOL_MULTIPLIER/... _RANGE (grid)&lt;br&gt;FOUND_PARAMS_FILE" vertex="1">
+        <mxCell id="n4a1" parent="n4" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="TICKERS, TIMEFRAME&lt;br&gt;VOL_LEN/VOL_MULTIPLIER/PRICE_MOVE/TRAIL_STOP/&lt;br&gt;BODY_RATIO/TAKE_PROFIT_PCT _RANGE (6-D grid)&lt;br&gt;SELECTION_METRIC, FOUND_PARAMS_FILE" vertex="1">
           <mxGeometry height="64" width="300" y="30" as="geometry" />
         </mxCell>
         <mxCell id="n4l1" parent="n4" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rounded=0;" value="" vertex="1">
           <mxGeometry height="8" width="300" y="94" as="geometry" />
         </mxCell>
-        <mxCell id="n4m1" parent="n4" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+main()&lt;br&gt;+tune_ticker()&lt;br&gt;+save_best_params()&lt;br&gt;+score_trades()" vertex="1">
-          <mxGeometry height="82" width="300" y="102" as="geometry" />
+        <mxCell id="n4m1" parent="n4" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+main()&lt;br&gt;+tune_ticker()&lt;br&gt;+save_best_params()  (ranks by SELECTION_METRIC)&lt;br&gt;+score_trades()  → pnl/win_rate/expectancy + max_drawdown,&lt;br&gt;&#160;&#160;&#160;sharpe, sortino, profit_factor, recovery_factor, combined_score&lt;br&gt;+rank_key() +plot_3d() +print_ticker_ranking()" vertex="1">
+          <mxGeometry height="102" width="300" y="102" as="geometry" />
         </mxCell>
         <mxCell id="n5" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" value="«module» signal_checks.py" vertex="1">
-          <mxGeometry height="112" width="300" x="720" y="340" as="geometry" />
+          <mxGeometry height="140" width="320" x="720" y="340" as="geometry" />
         </mxCell>
-        <mxCell id="n5m1" parent="n5" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+check_vol_price_body()&lt;br&gt;→ signal, trail_stop_loss, debug, flags&lt;br&gt;+scan_trailing_stop(..., extreme=None)&lt;br&gt;→ extreme, exit_time, exit_price" vertex="1">
-          <mxGeometry height="82" width="300" y="30" as="geometry" />
+        <mxCell id="n5m1" parent="n5" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+check_vol_price_body()&lt;br&gt;→ signal, price, trail_stop_loss, debug, flags&lt;br&gt;+scan_trailing_stop(..., extreme=None)&lt;br&gt;→ extreme, exit_time, exit_price&lt;br&gt;+scan_take_profit(high_df, entry_time, entry_price, dir, tp_pct)&lt;br&gt;→ exit_time, exit_price" vertex="1">
+          <mxGeometry height="110" width="320" y="30" as="geometry" />
         </mxCell>
         <mxCell id="n6" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="«module» backtester_alpaca.py" vertex="1">
-          <mxGeometry height="94" width="300" x="1080" y="490" as="geometry" />
+          <mxGeometry height="112" width="300" x="1080" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="n6m1" parent="n6" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+run_backtest()&lt;br&gt;+fetch_range()&lt;br&gt;+fetch_and_plot()" vertex="1">
-          <mxGeometry height="64" width="300" y="30" as="geometry" />
+        <mxCell id="n6m1" parent="n6" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+run_backtest()  (dual-scan: trailing stop + take-profit,&lt;br&gt;&#160;&#160;&#160;first-in-time wins; session-close fallback)&lt;br&gt;+fetch_range() +fetch_and_plot()&lt;br&gt;+to_marker_trades() +_session_close_cutoff()" vertex="1">
+          <mxGeometry height="78" width="300" y="30" as="geometry" />
         </mxCell>
         <mxCell id="n7" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="«module» params_lookup.py" vertex="1">
           <mxGeometry height="94" width="300" x="340" y="480" as="geometry" />
@@ -217,7 +217,7 @@
         <mxCell id="e5" edge="1" parent="1" source="n3" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" target="n11" value="uses">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" edge="1" parent="1" source="n3" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n5" value="uses — entry/exit signal&lt;br&gt;&amp; trailing stop">
+        <mxCell id="e6" edge="1" parent="1" source="n3" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n5" value="uses — entry/exit signal,&lt;br&gt;trailing stop &amp; take-profit">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e7" edge="1" parent="1" source="n3" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n1" value="reads PARAMS (importlib on&lt;br&gt;CONFIG_MODULE — alt.)">
@@ -236,7 +236,7 @@
         <mxCell id="e11" edge="1" parent="1" source="n4" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n1" value="writes PARAMS&lt;br&gt;(save_best_params)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e12" edge="1" parent="1" source="n6" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n5" value="uses — entry/exit signal&lt;br&gt;&amp; trailing stop">
+        <mxCell id="e12" edge="1" parent="1" source="n6" style="endArrow=open;endFill=0;dashed=1;html=1;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;fontSize=10;" target="n5" value="uses — entry/exit signal,&lt;br&gt;trailing stop &amp; take-profit">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e13" edge="1" parent="1" source="n6" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;" target="n2" value="imports as cfg">
@@ -270,6 +270,39 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="et4" edge="1" parent="1" source="t4" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;strokeColor=#999999;fontColor=#999999;" target="n8" value="tests">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="np1" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#60a917;strokeColor=#2D7600;fontSize=13;fontColor=#ffffff;" value="«module» tuner1_parallel.py" vertex="1">
+          <mxGeometry height="140" width="320" x="1470" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="np1a1" parent="np1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="MAX_WORKERS, TUNING_LOG (…_parallel.csv)&lt;br&gt;imports grid, score_trades, rank_key,&lt;br&gt;SELECTION_METRIC, printing/saving from tuner1.py" vertex="1">
+          <mxGeometry height="62" width="320" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="np1l1" parent="np1" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rounded=0;" value="" vertex="1">
+          <mxGeometry height="8" width="320" y="92" as="geometry" />
+        </mxCell>
+        <mxCell id="np1m1" parent="np1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+main() +tune_ticker()  (ProcessPoolExecutor)&lt;br&gt;_run_one_combo() / _init_worker()  — one worker per core" vertex="1">
+          <mxGeometry height="40" width="320" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="na1" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#60a917;strokeColor=#2D7600;fontSize=13;fontColor=#ffffff;" value="«module» tuner_analysis.py" vertex="1">
+          <mxGeometry height="140" width="320" x="1470" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="na1a1" parent="na1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="CSV_PATH, METRICS, PARAMS, LOWER_IS_BETTER&lt;br&gt;offline — reads tuning_logs/*.csv only, no Alpaca" vertex="1">
+          <mxGeometry height="46" width="320" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="na1l1" parent="na1" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rounded=0;" value="" vertex="1">
+          <mxGeometry height="8" width="320" y="76" as="geometry" />
+        </mxCell>
+        <mxCell id="na1m1" parent="na1" style="text;align=left;verticalAlign=top;spacingLeft=6;spacingTop=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;" value="+plot_2d()  scatter + mean/best lines + poly fit&lt;br&gt;+plot_3d()  best-metric surface over 2 params&lt;br&gt;+main()" vertex="1">
+          <mxGeometry height="54" width="320" y="84" as="geometry" />
+        </mxCell>
+        <mxCell id="enp1" edge="1" parent="1" source="np1" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;" target="n4" value="imports grid,&lt;br&gt;score_trades, rank_key">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="enp2" edge="1" parent="1" source="np1" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;" target="n6" value="uses run_backtest(),&lt;br&gt;fetch_range()">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ena1" edge="1" parent="1" source="na1" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=10;" target="n10" value="uses load_tuning_log()">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
@@ -497,7 +530,7 @@
             <mxPoint x="1265" y="818" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="sq_m20" edge="1" parent="1" style="html=1;endArrow=open;endFill=0;dashed=1;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;" value="signal, trail_stop_loss, debug, flags">
+        <mxCell id="sq_m20" edge="1" parent="1" style="html=1;endArrow=open;endFill=0;dashed=1;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#d79b00;fontColor=#d79b00;strokeWidth=2;" value="signal, price, trail_stop_loss, debug, flags">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="1265" y="848" as="sourcePoint" />
             <mxPoint x="110" y="848" as="targetPoint" />
@@ -549,12 +582,15 @@
     </mxGraphModel>
   </diagram>
   <diagram id="t1lrxdlM90JZYZOfeSvB" name="action_tuner1">
-    <mxGraphModel dx="2400" dy="2950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1020" pageHeight="1470" math="0" shadow="0">
+    <mxGraphModel dx="2400" dy="2950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="1470" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="ac_title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;align=left;verticalAlign=middle;" value="tuner1.py — activity diagram: main() tuning run" vertex="1">
           <mxGeometry height="30" width="600" x="340" y="-40" as="geometry" />
+        </mxCell>
+        <mxCell id="ac_note_parallel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;fontSize=11;" value="tuner1_parallel.py runs the same flow with tune_ticker() fanned across a ProcessPoolExecutor (one worker/core); writes tuning_…_parallel.csv. tuner_analysis.py is the offline step: reloads a tuning CSV and draws plot_2d / plot_3d — no backtests, no Alpaca." vertex="1">
+          <mxGeometry height="70" width="520" x="770" y="-45" as="geometry" />
         </mxCell>
         <mxCell id="ac_start" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" value="" vertex="1">
           <mxGeometry height="24" width="24" x="528" y="40" as="geometry" />
@@ -595,16 +631,16 @@
         <mxCell id="ac_a6" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="log warning: ‘No data for %s — skipping.’" vertex="1">
           <mxGeometry height="50" width="260" x="760" y="565" as="geometry" />
         </mxCell>
-        <mxCell id="ac_a7" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="results = tune_ticker(ticker, low_df, high_df)&lt;br&gt;[grid-search VOL_LEN × VOL_MULTIPLIER × PRICE_MOVE_PCT ×&lt;br&gt;TRAIL_STOP_PCT × BODY_RATIO_THRESHOLD → run_backtest() per combo]" vertex="1">
-          <mxGeometry height="75" width="360" x="360" y="650" as="geometry" />
+        <mxCell id="ac_a7" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="results = tune_ticker(ticker, low_df, high_df)&lt;br&gt;[grid-search VOL_LEN × VOL_MULTIPLIER × PRICE_MOVE_PCT ×&lt;br&gt;TRAIL_STOP_PCT × BODY_RATIO_THRESHOLD × TAKE_PROFIT_PCT&lt;br&gt;→ run_backtest() per combo; score_trades() → pnl, win_rate,&lt;br&gt;expectancy, max_drawdown, sharpe, sortino, profit_factor,&lt;br&gt;recovery_factor, combined_score]" vertex="1">
+          <mxGeometry height="100" width="380" x="350" y="645" as="geometry" />
         </mxCell>
         <mxCell id="ac_a8" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="log_tuning_csv(TUNING_LOG, ticker, TIMEFRAME, START_DT, END_DAY, results)" vertex="1">
           <mxGeometry height="50" width="320" x="380" y="755" as="geometry" />
         </mxCell>
-        <mxCell id="ac_a9" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="results.sort(key=total_pnl, reverse=True)&lt;br&gt;print_results_table(ticker, results)" vertex="1">
+        <mxCell id="ac_a9" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="results.sort(key=rank_key(SELECTION_METRIC), reverse=True)&lt;br&gt;print_results_table(ticker, results)" vertex="1">
           <mxGeometry height="55" width="320" x="380" y="830" as="geometry" />
         </mxCell>
-        <mxCell id="ac_a10" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" value="save_best_params(ticker, results)&lt;br&gt;→ writes tuner1_found_params.py" vertex="1">
+        <mxCell id="ac_a10" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" value="save_best_params(ticker, results)&lt;br&gt;→ max by SELECTION_METRIC → writes tuner1_found_paramsN.py" vertex="1">
           <mxGeometry height="55" width="320" x="380" y="910" as="geometry" />
         </mxCell>
         <mxCell id="ac_a11" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="plot_3d(ticker, results, &#39;vol_multiplier&#39;,&lt;br&gt;&#39;trail_stop_pct&#39;, &#39;expectancy&#39;)  — builds figure only" vertex="1">
@@ -613,8 +649,8 @@
         <mxCell id="ac_d3" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="more tickers&lt;br&gt;to process?" vertex="1">
           <mxGeometry height="60" width="140" x="470" y="1075" as="geometry" />
         </mxCell>
-        <mxCell id="ac_a12" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="print_ticker_ranking(results_by_ticker, &#39;expectancy&#39;)" vertex="1">
-          <mxGeometry height="50" width="280" x="400" y="1225" as="geometry" />
+        <mxCell id="ac_a12" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="print_ticker_ranking(results_by_ticker)  [default = SELECTION_METRIC]" vertex="1">
+          <mxGeometry height="50" width="320" x="380" y="1225" as="geometry" />
         </mxCell>
         <mxCell id="ac_a13" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="plt.show()  — blocks once, shows every ticker&#39;s figure" vertex="1">
           <mxGeometry height="50" width="280" x="400" y="1305" as="geometry" />
@@ -694,7 +730,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="bt_action_backtester_01" name="action_backtester">
-    <mxGraphModel dx="2400" dy="3380" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1020" pageHeight="1900" math="0" shadow="0">
+    <mxGraphModel dx="2400" dy="3380" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1020" pageHeight="2000" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -731,11 +767,11 @@
         <mxCell id="bt_a6" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="log error: ‘No data fetched — exiting.’&lt;br&gt;return" vertex="1">
           <mxGeometry height="60" width="290" x="740" y="512" as="geometry" />
         </mxCell>
-        <mxCell id="bt_a7" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="vol_len=10, vol_multiplier=1.8, price_move_pct=1.5,&lt;br&gt;trail_stop_pct=1.8, body_ratio_threshold=0.5&lt;br&gt;(hardcoded here; commented-out cfg.get_params()&lt;br&gt;lookup mirrors rocket_janek.py&#39;s per-symbol params)" vertex="1">
+        <mxCell id="bt_a7" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="vol_len=5, vol_multiplier=3.0, price_move_pct=3.0,&lt;br&gt;trail_stop_pct=2.0, body_ratio_threshold=0.7, take_profit_pct=3.0&lt;br&gt;(hardcoded here; commented-out cfg.get_params()&lt;br&gt;lookup mirrors rocket_janek.py&#39;s per-symbol params)" vertex="1">
           <mxGeometry height="80" width="360" x="360" y="600" as="geometry" />
         </mxCell>
         <mxCell id="bt_loop" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;verticalAlign=top;" value="" vertex="1">
-          <mxGeometry height="775" width="820" x="140" y="700" as="geometry" />
+          <mxGeometry height="890" width="820" x="140" y="700" as="geometry" />
         </mxCell>
         <mxCell id="bt_loop_lbl" parent="1" style="text;html=1;fontSize=11;fontStyle=1;align=left;verticalAlign=middle;fillColor=#FFFFFF;strokeColor=none;whiteSpace=nowrap;spacingLeft=4;spacingRight=4;" value="loop   [run_backtest() — walk low_df candle-by-candle while i &lt; n−1]" vertex="1">
           <mxGeometry height="18" width="520" x="144" y="696" as="geometry" />
@@ -743,10 +779,10 @@
         <mxCell id="bt_b1" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="window = low_df.iloc[i−vol_len+2 : i+2]&lt;br&gt;(vol_len bars ending at signal candle i)" vertex="1">
           <mxGeometry height="55" width="320" x="380" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="bt_b2" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" value="signal, trail_stop_loss, debug, flags =&lt;br&gt;check_vol_price_body(window, vol_multiplier,&lt;br&gt;price_move_pct, trail_stop_pct, body_ratio_threshold)" vertex="1">
+        <mxCell id="bt_b2" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" value="signal, _, trail_stop_loss, debug, flags =&lt;br&gt;check_vol_price_body(window, vol_multiplier,&lt;br&gt;price_move_pct, trail_stop_pct, body_ratio_threshold)" vertex="1">
           <mxGeometry height="70" width="360" x="360" y="805" as="geometry" />
         </mxCell>
-        <mxCell id="bt_b3" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="checks.append({signal_time, signal, volume,&lt;br&gt;mean_volume, current_pct, price_threshold, body_ratio, ...})" vertex="1">
+        <mxCell id="bt_b3" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="checks.append({signal_time, signal, volume, mean_volume,&lt;br&gt;current_pct, price_threshold, trail_stop_pct, body_ratio,&lt;br&gt;green_volume/green_price/red_price/green_body flags})" vertex="1">
           <mxGeometry height="55" width="360" x="360" y="895" as="geometry" />
         </mxCell>
         <mxCell id="bt_d3" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="signal?" vertex="1">
@@ -761,32 +797,35 @@
         <mxCell id="bt_b6" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="entry_time / entry_price = first 1m bar&#39;s Open&lt;br&gt;direction = long if signal==&#39;BUY&#39; else short" vertex="1">
           <mxGeometry height="55" width="320" x="380" y="1205" as="geometry" />
         </mxCell>
-        <mxCell id="bt_b7" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="exit_time, exit_price =&lt;br&gt;_scan_trailing_stop(high_df, entry_time,&lt;br&gt;entry_price, direction, trail_stop_loss)" vertex="1">
-          <mxGeometry height="65" width="320" x="380" y="1280" as="geometry" />
+        <mxCell id="bt_b7" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="session_cutoff = _session_close_cutoff(entry_time)&lt;br&gt;window = high_df[entry_time … session_cutoff]&lt;br&gt;sl_time,sl_price = scan_trailing_stop(window, …)&lt;br&gt;tp_time,tp_price = scan_take_profit(window, …)&lt;br&gt;exit = earliest by time of {trail_stop, take_profit};&lt;br&gt;else force-close at cutoff — exit_reason set accordingly" vertex="1">
+          <mxGeometry height="110" width="340" x="370" y="1275" as="geometry" />
         </mxCell>
-        <mxCell id="bt_b8" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="pnl = (exit−entry)×qty, sign per direction, else None&lt;br&gt;trades.append({entry, exit, pnl, ...})" vertex="1">
-          <mxGeometry height="55" width="320" x="380" y="1365" as="geometry" />
+        <mxCell id="bt_b8" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="pnl = (exit−entry)×qty, sign per direction&lt;br&gt;trades.append({entry, exit, exit_reason,&lt;br&gt;trail_stop_pct, take_profit_pct, pnl, ...})" vertex="1">
+          <mxGeometry height="60" width="320" x="380" y="1400" as="geometry" />
         </mxCell>
-        <mxCell id="bt_d5" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="exit_time is&lt;br&gt;None?" vertex="1">
-          <mxGeometry height="60" width="140" x="470" y="1440" as="geometry" />
+        <mxCell id="bt_d5" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="exit_reason ==&lt;br&gt;&#39;session_close&#39;?" vertex="1">
+          <mxGeometry height="70" width="150" x="465" y="1485" as="geometry" />
         </mxCell>
-        <mxCell id="bt_a8" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="print backtest header + per-trade lines&lt;br&gt;(direction, entry, exit, trail %, pnl, running cumulative)" vertex="1">
-          <mxGeometry height="60" width="320" x="380" y="1520" as="geometry" />
+        <mxCell id="bt_d7" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="later trading day&lt;br&gt;has bars?" vertex="1">
+          <mxGeometry height="70" width="150" x="200" y="1485" as="geometry" />
+        </mxCell>
+        <mxCell id="bt_a8" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="print backtest header + per-trade lines  (direction, signal/entry/exit&lt;br&gt;times, entry, exit, exit_reason, trail %, take-profit %, pnl, cumulative)" vertex="1">
+          <mxGeometry height="60" width="380" x="360" y="1620" as="geometry" />
         </mxCell>
         <mxCell id="bt_a9" parent="1" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="print per-candle checks table&lt;br&gt;(signal_time, signal, volume, pct, body_ratio — colorized)" vertex="1">
-          <mxGeometry height="60" width="320" x="380" y="1600" as="geometry" />
+          <mxGeometry height="60" width="320" x="380" y="1700" as="geometry" />
         </mxCell>
         <mxCell id="bt_d6" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="trades and&lt;br&gt;FETCH_AND_PLOT?" vertex="1">
-          <mxGeometry height="60" width="140" x="470" y="1680" as="geometry" />
+          <mxGeometry height="60" width="140" x="470" y="1780" as="geometry" />
         </mxCell>
         <mxCell id="bt_a10" parent="1" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="fetch_and_plot(client, TICKER,&lt;br&gt;to_marker_trades(trades), START_DT.date(), END_DAY, TIMEFRAME)&lt;br&gt;→ re-fetches df_big / df_1m, builds a synced&lt;br&gt;4-panel mplfinance chart (entries + exits), plt.show()" vertex="1">
-          <mxGeometry height="90" width="320" x="740" y="1665" as="geometry" />
+          <mxGeometry height="90" width="320" x="740" y="1765" as="geometry" />
         </mxCell>
         <mxCell id="bt_end3_o" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" value="" vertex="1">
-          <mxGeometry height="24" width="24" x="528" y="1810" as="geometry" />
+          <mxGeometry height="24" width="24" x="528" y="1910" as="geometry" />
         </mxCell>
         <mxCell id="bt_end3_i" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" value="" vertex="1">
-          <mxGeometry height="12" width="12" x="534" y="1816" as="geometry" />
+          <mxGeometry height="12" width="12" x="534" y="1916" as="geometry" />
         </mxCell>
         <mxCell id="bt_e1" edge="1" parent="1" source="bt_start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="bt_a1">
           <mxGeometry relative="1" as="geometry" />
@@ -867,16 +906,35 @@
         <mxCell id="bt_e23" edge="1" parent="1" source="bt_b8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="bt_d5">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="bt_e24" edge="1" parent="1" source="bt_d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=0;exitY=0.5;entryX=0;entryY=0.75;labelBackgroundColor=#ffffff;" target="bt_b1" value="[no] i = searchsorted(exit_time)">
+        <mxCell id="bt_e24" edge="1" parent="1" source="bt_d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.75;labelBackgroundColor=#ffffff;" target="bt_b1" value="[no] i = low_df.searchsorted(exit_time)">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="240.03" y="1470" />
-              <mxPoint x="240.03" y="771.17" />
+              <mxPoint x="130" y="1520" />
+              <mxPoint x="130" y="771.17" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="bt_e25" edge="1" parent="1" source="bt_d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" target="bt_a8" value="[yes] break — position never&lt;br&gt;closed before data ran out">
+        <mxCell id="bt_e25" edge="1" parent="1" source="bt_d5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=0;exitY=0.5;entryX=1;entryY=0.5;labelBackgroundColor=#ffffff;" target="bt_d7" value="[yes] session flattened for the night">
           <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bt_e25b" edge="1" parent="1" source="bt_d7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=0;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#ffffff;" target="bt_b1" value="[yes] i = first bar of that day&lt;br&gt;(skip rest of today)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="1520" />
+              <mxPoint x="120" y="757" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="bt_e25c" edge="1" parent="1" source="bt_d7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;labelBackgroundColor=#ffffff;" target="bt_a8" value="[no] break — that was the last day of data">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bt_e25d" edge="1" parent="1" source="bt_b1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;fontSize=10;exitX=1;exitY=0.5;entryX=1;entryY=0;labelBackgroundColor=#ffffff;" target="bt_a8" value="[i ≥ n−1] loop ends normally">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="757" />
+              <mxPoint x="800" y="1620" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="bt_e26" edge="1" parent="1" source="bt_a8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="bt_a9">
           <mxGeometry relative="1" as="geometry" />
@@ -1295,7 +1353,7 @@
           <mxGeometry x="240" y="1075" width="320" height="50" as="geometry" />
         </mxCell>
 
-        <mxCell id="rj_b1" value="get per-symbol params (vol_len, vol_multiplier,&lt;br&gt;price_move_pct, trail_stop_pct, body_ratio_threshold)&lt;br&gt;df = fetch_data_from_IBKR(...); update_current_price()" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+        <mxCell id="rj_b1" value="get per-symbol params (vol_len, vol_multiplier,&lt;br&gt;price_move_pct, trail_stop_pct, body_ratio_threshold)&lt;br&gt;take_profit_pct = trail_stop_loss × TAKE_PROFIT_RR&lt;br&gt;df = fetch_data_from_IBKR(...); update_current_price()" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="160" y="1175" width="440" height="75" as="geometry" />
         </mxCell>
         <mxCell id="rj_da" value="df is None, or candle&lt;br&gt;already processed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
@@ -1313,7 +1371,7 @@
         <mxCell id="rj_dc" value="entry filled&lt;br&gt;(result not None)?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
           <mxGeometry x="555" y="1560" width="200" height="65" as="geometry" />
         </mxCell>
-        <mxCell id="rj_b3b" value="open_trades[symbol] = {direction, entry_price,&lt;br&gt;entry_time, entry_order_id, trail_stop_loss,&lt;br&gt;extreme, bars_since_check: 0}" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" vertex="1" parent="1">
+        <mxCell id="rj_b3b" value="open_trades[symbol] = {direction, entry_price,&lt;br&gt;entry_time, entry_order_id, trail_stop_loss, take_profit_pct,&lt;br&gt;extreme, bars_since_check: 0}" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" vertex="1" parent="1">
           <mxGeometry x="530" y="1640" width="250" height="75" as="geometry" />
         </mxCell>
         <mxCell id="rj_b4" value="last_processed_candle[symbol] = candle_time" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
@@ -1367,8 +1425,8 @@
         <mxCell id="rj_c4" value="window_df &#8592; last 12&lt;br&gt;live_bars[symbol]" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="1000" y="520" width="320" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="rj_c5" value="extreme, exit_time, exit_price =&lt;br&gt;scan_trailing_stop(window_df, entry_time,&lt;br&gt;entry_price, direction, trail_stop_loss,&lt;br&gt;extreme=trade['extreme'])" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" vertex="1" parent="1">
-          <mxGeometry x="980" y="590" width="360" height="95" as="geometry" />
+        <mxCell id="rj_c5" value="tp_time, tp_price = scan_take_profit(window_df, entry_time,&lt;br&gt;entry_price, direction, take_profit_pct)&lt;br&gt;if tp_price: gw.close_position(...) &amp; return  (TP wins the tick)&lt;br&gt;else: extreme, exit_time, exit_price =&lt;br&gt;scan_trailing_stop(window_df, entry_time, entry_price,&lt;br&gt;direction, trail_stop_loss, extreme=trade['extreme'])" style="rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="960" y="585" width="400" height="110" as="geometry" />
         </mxCell>
         <mxCell id="rj_c6" value="trade['extreme'] = extreme" style="rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="1020" y="695" width="280" height="50" as="geometry" />
