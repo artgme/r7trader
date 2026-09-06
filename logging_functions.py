@@ -55,9 +55,13 @@ def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: fl
         ])
 
 
+_LEGACY_TAKE_PROFIT_PCT = 2.0  # backtester_alpaca.TAKE_PROFIT_PCT's value before the sweep was
+                                # added — used only as a fallback when reloading an older tuning
+                                # log that predates the take_profit_pct column
+
 _TUNING_CSV_HEADERS = ['tuned_at', 'ticker', 'timeframe', 'run_start', 'run_end',
                        'vol_len', 'vol_multiplier', 'price_move_pct', 'trail_stop_pct', 'body_ratio_threshold',
-                       'trade_count', 'win_rate', 'total_pnl', 'expectancy']
+                       'take_profit_pct', 'trade_count', 'win_rate', 'total_pnl', 'expectancy']
 
 
 def init_tuning_log(log_path: Path):
@@ -81,7 +85,7 @@ def log_tuning_csv(log_path: Path, ticker: str, timeframe: str, run_start, run_e
             writer.writerow([
                 tuned_at, ticker, timeframe, run_start, run_end,
                 r['vol_len'], r['vol_multiplier'], r['price_move_pct'], r['trail_stop_pct'], r['body_ratio_threshold'],
-                r['trade_count'], r['win_rate'], r['total_pnl'], r['expectancy'],
+                r['take_profit_pct'], r['trade_count'], r['win_rate'], r['total_pnl'], r['expectancy'],
             ])
 
 
@@ -98,6 +102,9 @@ def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
                 'price_move_pct': float(row['price_move_pct']),
                 'trail_stop_pct': float(row['trail_stop_pct']),
                 'body_ratio_threshold': float(row['body_ratio_threshold']),
+                # older logs predate the take_profit_pct sweep -- fall back to backtester_alpaca's
+                # flat default, which is what those runs actually used.
+                'take_profit_pct': float(row['take_profit_pct']) if 'take_profit_pct' in row else _LEGACY_TAKE_PROFIT_PCT,
                 'trade_count': int(row['trade_count']),
                 'win_rate': float(row['win_rate']),
                 'total_pnl': float(row['total_pnl']),

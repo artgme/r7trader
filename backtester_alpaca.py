@@ -26,16 +26,14 @@ load_dotenv()
 ALPACA_API_KEY = os.environ.get('ALPACA_API_KEY')
 ALPACA_SECRET_KEY = os.environ.get('ALPACA_API_SECRET')
 
-TICKER = 'RKLB'
+TICKER = 'ALAB'
 CURRENCY = 'USD'
 TIMEFRAME = '10m'
-START_DT = datetime.datetime(2026, 7, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
-END_DAY = datetime.date(2026, 7, 14)
+START_DT = datetime.datetime(2026, 6, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
+END_DAY = datetime.date(2026, 9, 4)
 QUANTITY = 10
 FETCH_AND_PLOT = 1
 
-TAKE_PROFIT_PCT = 2.0  # experiment: flat take-profit target for now — will become a tuner1.py
-                        # grid-search parameter later, same as trail_stop_pct
 CLOSE_BEFORE_SECONDS = 1200  # how far ahead of RTH_CLOSE to force-close a trade still open at
                               # end of session — mirrors rocket_janek.py's CLOSE_OVERNIGHT
 
@@ -136,7 +134,7 @@ def _session_close_cutoff(entry_time) -> datetime.datetime:
 def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start_dt, timeframe: str,
                   vol_len: int, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float,
                   body_ratio_threshold: float, quantity: float,
-                  take_profit_pct: float = TAKE_PROFIT_PCT) -> tuple[list[dict], list[dict]]:
+                  take_profit_pct: float) -> tuple[list[dict], list[dict]]:
     """Walk low_df candle-by-candle, calling check_vol_price_body() on each closed candle while flat —
     same window shape as the live loop (iloc[-2] = signal candle, iloc[-1] = next candle,
     standing in for the still-forming candle a live fetch would see). On a signal, fills at
@@ -470,17 +468,18 @@ def main():
     # price_move_pct = params.get('price_move_pct', 1.5)
     # trail_stop_pct = params.get('trail_stop_pct', 1.0)
     # body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
-    vol_len = 10
-    vol_multiplier = 1.8
-    price_move_pct = 1.5
-    trail_stop_pct = 1.5 #to even 3.5
-    body_ratio_threshold = 0.5
+    vol_len = 5
+    vol_multiplier = 3.0
+    price_move_pct = 3.0
+    trail_stop_pct = 2.0
+    body_ratio_threshold = 0.7
+    take_profit_pct = 3.0
 
     trades, checks = run_backtest(TICKER, low_df, high_df, START_DT, TIMEFRAME, vol_len,
-                                   vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY)
+                                   vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY, take_profit_pct=take_profit_pct)
 
     printing_trades(TICKER, START_DT, END_DAY, TIMEFRAME, trades)
-    printing_checks(checks)
+    #printing_checks(checks)
 
     if trades and FETCH_AND_PLOT:
         fetch_and_plot(client, TICKER, to_marker_trades(trades), START_DT.date(), END_DAY, TIMEFRAME)

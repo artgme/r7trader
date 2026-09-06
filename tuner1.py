@@ -22,7 +22,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from backtester_alpaca import fetch_range, run_backtest, ALPACA_API_KEY, ALPACA_SECRET_KEY
 from logging_functions import log_tuning_csv, EXCHANGE_TZ
 
-FOUND_PARAMS_FILE = Path('tuner1_found_params.py')
+FOUND_PARAMS_FILE = Path('tuner1_found_params4.py')
 
 # Top 50 from Potential_2026-07-18_81690.csv, ranked by |1-day price change %| x relative
 # volume (matches what check_vol_price_body() actually detects: a big move backed by unusual volume),
@@ -36,10 +36,10 @@ TICKERS = ['VOYG', 'ISRG','ASTS','NXT','ALAB']  # tuned one at a time, results r
 #     'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',
 #     'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL',
 # ]
-TIMEFRAME = '30m'
-START_DT = datetime.datetime(2026, 5, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
-END_DAY = datetime.date(2026, 7, 26)
-QUANTITY = 10
+TIMEFRAME = '10m'
+START_DT = datetime.datetime(2026, 6, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
+END_DAY = datetime.date(2026, 9, 4)
+QUANTITY = 10 #ile akcji kupujemy na trade
 TOP_N = 10  # how many best combos to print per ticker
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
@@ -51,6 +51,7 @@ VOL_MULTIPLIER_RANGE = [0.5, 0.7, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5]
 PRICE_MOVE_PCT_RANGE = [0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 3.5]
 TRAIL_STOP_PCT_RANGE = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
 BODY_RATIO_THRESHOLD_RANGE = [0.3, 0.5, 0.7]
+TAKE_PROFIT_PCT_RANGE = [1.0, 1.5, 2.0]  # starting range — narrow in once a promising region shows up
 
 
 # Usage: score = score_trades(trades)
@@ -72,23 +73,26 @@ def tune_ticker(ticker: str, low_df, high_df) -> list[dict]:
     """Grid-search every parameter combination for one ticker against already-fetched data —
     fetching happens once in main(), run_backtest() itself makes no network calls."""
     combos = list(itertools.product(VOL_LEN_RANGE, VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
-                                     TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE))
+                                     TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE))
     total = len(combos)
     print(f'{ticker}: grid size {total} combos '
           f'({len(VOL_LEN_RANGE)} vol_len × {len(VOL_MULTIPLIER_RANGE)} vol_multiplier × '
           f'{len(PRICE_MOVE_PCT_RANGE)} price_move_pct × {len(TRAIL_STOP_PCT_RANGE)} trail_stop_pct × '
-          f'{len(BODY_RATIO_THRESHOLD_RANGE)} body_ratio_threshold)')
+          f'{len(BODY_RATIO_THRESHOLD_RANGE)} body_ratio_threshold × '
+          f'{len(TAKE_PROFIT_PCT_RANGE)} take_profit_pct)')
 
     results = []
-    for i, (vol_len, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold) in enumerate(combos, 1):
+    for i, (vol_len, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, take_profit_pct) in enumerate(combos, 1):
         trades, _ = run_backtest(ticker, low_df, high_df, START_DT, TIMEFRAME, vol_len,
-                                  vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY)
+                                  vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY,
+                                  take_profit_pct=take_profit_pct)
         results.append({
             'vol_len': vol_len,
             'vol_multiplier': vol_multiplier,
             'price_move_pct': price_move_pct,
             'trail_stop_pct': trail_stop_pct,
             'body_ratio_threshold': body_ratio_threshold,
+            'take_profit_pct': take_profit_pct,
             **score_trades(trades),
         })
         print(f'\r  {ticker}: {i}/{total} combos tested', end='', flush=True)
@@ -100,10 +104,10 @@ def tune_ticker(ticker: str, low_df, high_df) -> list[dict]:
 def print_results_table(ticker: str, results: list[dict]) -> None:
     """Print the top TOP_N combos for one ticker, ranked by total P&L (results must already be sorted)."""
     print(f'\n=== {ticker}: top {min(TOP_N, len(results))} of {len(results)} combos, ranked by total P&L ===')
-    print(f"  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'body_ratio':>11}  {'trades':>7}  {'win_rate':>9}  {'total_pnl':>10}  {'expectancy':>11}")
+    print(f"  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'tp_pct':>7}  {'body_ratio':>11}  {'trades':>7}  {'win_rate':>9}  {'total_pnl':>10}  {'expectancy':>11}")
     for r in results[:TOP_N]:
         print(f"  {r['vol_len']:>7d}  {r['vol_multiplier']:>9.2f}  {r['price_move_pct']:>10.2f}  {r['trail_stop_pct']:>10.2f}  "
-              f"{r['body_ratio_threshold']:>11.2f}  {r['trade_count']:>7d}  {r['win_rate']:>8.0%}  {r['total_pnl']:>+10.2f}  {r['expectancy']:>+11.2f}")
+              f"{r['take_profit_pct']:>7.2f}  {r['body_ratio_threshold']:>11.2f}  {r['trade_count']:>7d}  {r['win_rate']:>8.0%}  {r['total_pnl']:>+10.2f}  {r['expectancy']:>+11.2f}")
 
 
 def _load_found_params() -> dict:
@@ -138,6 +142,7 @@ def save_best_params(ticker: str, results: list[dict]) -> None:
         'price_move_pct': best['price_move_pct'],
         'trail_stop_pct': best['trail_stop_pct'],
         'body_ratio_threshold': best['body_ratio_threshold'],
+        'take_profit_pct': best['take_profit_pct'],
     }
 
     all_params = _load_found_params()
@@ -190,11 +195,11 @@ def print_ticker_ranking(results_by_ticker: dict[str, list[dict]], metric: str =
     ranked = sorted(best_per_ticker.items(), key=lambda kv: kv[1][metric], reverse=True)
 
     print(f'\n=== Ticker ranking by {metric} (best combo per ticker) ===')
-    print(f"  {'#':>3}  {'ticker':6}  {metric:>11}  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'body_ratio':>11}")
+    print(f"  {'#':>3}  {'ticker':6}  {metric:>11}  {'vol_len':>7}  {'vol_mult':>9}  {'price_pct':>10}  {'trail_pct':>10}  {'tp_pct':>7}  {'body_ratio':>11}")
     for i, (ticker, r) in enumerate(ranked, 1):
         metric_str = f"{r[metric]:>+11.0%}" if metric == 'win_rate' else f"{r[metric]:>+11.2f}"
         print(f"  {i:>3}  {ticker:6}  {metric_str}  {r['vol_len']:>7d}  {r['vol_multiplier']:>9.2f}  "
-              f"{r['price_move_pct']:>10.2f}  {r['trail_stop_pct']:>10.2f}  {r['body_ratio_threshold']:>11.2f}")
+              f"{r['price_move_pct']:>10.2f}  {r['trail_stop_pct']:>10.2f}  {r['take_profit_pct']:>7.2f}  {r['body_ratio_threshold']:>11.2f}")
 
 
 def main():
