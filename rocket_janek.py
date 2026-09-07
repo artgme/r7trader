@@ -7,6 +7,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger('ibkr').setLevel(logging.INFO)
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('ibapi').setLevel(logging.WARNING)  # silence the IB API's per-second socket/queue debug spam
 
 import datetime
 import importlib
@@ -26,25 +27,26 @@ from common import RED, GREEN, YELLOW, BLUE, CYAN, WHITE, RESET, timeframe_to_se
 
 CLIENT_ID=79
 
-CONFIG_MODULE = 'tuner1_found_params3'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
+CONFIG_MODULE = 'tuner1_found_params5'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = [
-    'AMAT', 'LITE', 'ALAB', 'STX', 'CIEN', 'AMD', 'MPWR', 'SIMO', 'BE', 'ISRG',
-    'CRDO', 'ENTG', 'MXL', 'NBIS', 'KLAC', 'AMKR', 'DELL', 'AEHR', 'MRVL', 'HOOD',
-    'RCL', 'ARM', 'NXT', 'INTC', 'APTV', 'APO', 'UAL', 'ASTS', 'ARWR', 'GTLB',
-    'VSAT', 'QNT', 'VSH', 'TEAM', 'REZI', 'LEN', 'BROS', 'ALK', 'AOSL', 'CSCO',
-    'DHI', 'A', 'MRNA', 'AFRM', 'MWH', 'CEVA', 'RIOT', 'CVNA', 'IREN', 'HPE',
-    'DAL', 'RBLX', 'IVZ', 'JOBY',
-]
+SYMBOLS = ['ASTS','ALAB','VOYG','NXT','PATH','HPQ','ABNB','LUV','FRSH','JD','DIS']
+# SYMBOLS = [
+#     'AMAT', 'LITE', 'ALAB', 'STX', 'CIEN', 'AMD', 'MPWR', 'SIMO', 'BE', 'ISRG',
+#     'CRDO', 'ENTG', 'MXL', 'NBIS', 'KLAC', 'AMKR', 'DELL', 'AEHR', 'MRVL', 'HOOD',
+#     'RCL', 'ARM', 'NXT', 'INTC', 'APTV', 'APO', 'UAL', 'ASTS', 'ARWR', 'GTLB',
+#     'VSAT', 'QNT', 'VSH', 'TEAM', 'REZI', 'LEN', 'BROS', 'ALK', 'AOSL', 'CSCO',
+#     'DHI', 'A', 'MRNA', 'AFRM', 'MWH', 'CEVA', 'RIOT', 'CVNA', 'IREN', 'HPE',
+#     'DAL', 'RBLX', 'IVZ', 'JOBY',
+# ]
 #SYMBOLS = ['AIXA','BESI','SOI','ASML','SIE.DE','IFX','MC.PA','AMS']
 SYMBOL_CURRENCY = {symbol: 'USD' for symbol in SYMBOLS}
 #SYMBOL_CURRENCY = {'AIXA':'EUR','BESI':'EUR','SOI':'EUR','ASML':'EUR','SIE.DE':'EUR','IFX':'EUR','MC.PA':'EUR','AMS':'EUR'}
-TIMEFRAME = '30m'
+TIMEFRAME = '10m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
-FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
+#FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 EXCHANGE_CLOSE_TIME = datetime.time(16, 0)
 CLOSE_OVERNIGHT = True  # if True, flatten every open position shortly before the exchange closes — no overnight holds
@@ -290,15 +292,16 @@ def main():
                 positions = gw.get_positions()
                 for symbol in SYMBOLS:
                   try:
-                    #3. Parametry per-symbol — każdy symbol ma własną strojoną konfigurację:
+                    #3. Parametry per-symbol — każdy symbol ma własną konfigurację:
                     params = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', symbol, TIMEFRAME)
                     vol_len = params.get('vol_len', 10)
                     vol_multiplier = params.get('vol_multiplier', 1.8)
                     price_move_pct = params.get('price_move_pct', 1.5)
                     trail_stop_pct = params.get('trail_stop_pct', 1.0)
                     body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
+                    take_profit_pct = params.get('take_profit_pct', 2.0)
                     duration = f'{vol_len * tf_seconds} S'          # enough bars to fill vol_len
-                    logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, vol_multiplier={vol_multiplier}, price_move_pct={price_move_pct}, trail_stop_pct={trail_stop_pct}, body_ratio_threshold={body_ratio_threshold}{RESET}")
+                    logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, vol_multiplier={vol_multiplier}, price_move_pct={price_move_pct}, trail_stop_pct={trail_stop_pct}, take_profit_pct={take_profit_pct},body_ratio_threshold={body_ratio_threshold}{RESET}")
 
                     #4. Ściągnij dane z IBKR
                     df = fetch_data_from_IBKR(gw, symbol, duration, TIMEFRAME, use_rth=True, currency=SYMBOL_CURRENCY[symbol])
@@ -316,7 +319,7 @@ def main():
 
                     #6. Entry logic
                     signal, _, trail_stop_loss, debug, flags = check_vol_price_body(df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
-                    trail_stop_loss = FIXED_TRAIL_STOP_PCT  # experiment: fixed tight stop instead of the tuned/dynamic one
+                    #trail_stop_loss = FIXED_TRAIL_STOP_PCT  # experiment: fixed tight stop instead of the tuned/dynamic one
                     log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
                     if not LIVE_TRADING:
                         logger.debug(f'{YELLOW}{symbol}: LIVE_TRADING is off, skipping entry.{RESET}')
@@ -334,7 +337,7 @@ def main():
                                 'entry_order_id': entry.order.orderId,
                                 'trail_stop_loss': trail_stop_loss,
                                 'extreme': entry.orderStatus.avgFillPrice,
-                                'take_profit_pct': trail_stop_loss * TAKE_PROFIT_RR,
+                                'take_profit_pct': take_profit_pct,
                                 'bars_since_check': 0,
                             }
                     last_processed_candle[symbol] = candle_time

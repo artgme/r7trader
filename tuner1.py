@@ -28,7 +28,8 @@ FOUND_PARAMS_FILE = Path('tuner1_found_params5.py')
 # volume (matches what check_vol_price_body() actually detects: a big move backed by unusual volume),
 # capped at 8 per sector so Electronic technology/Technology services don't crowd out everything
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
-TICKERS = ['VOYG', 'ISRG','ASTS','NXT','ALAB']  # tuned one at a time, results reported per ticker
+#TICKERS = ['VOYG', 'ISRG','ASTS','NXT','ALAB']  # tuned one at a time, results reported per ticker
+TICKERS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP','JD','ABNB','FRSH','TMO','HALO']
 # TICKERS = [
 #     'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
 #     'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',

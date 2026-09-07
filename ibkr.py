@@ -211,6 +211,11 @@ class IBKRGateway:
         self.port = port
         self.client_id = client_id
         self.app = _Wrapper(timeout=30)
+        # Dedicated id space for streaming subscriptions (reqRealTimeBars etc.). get_next_valid_id()
+        # returns TWS's next *order* id, which only advances when an order is placed — so using it
+        # for back-to-back market-data requests hands out the same id every time ("Duplicate ticker
+        # id", error 102). Start well clear of the order-id range and bump locally per subscription.
+        self._stream_req_id = 90_000_000
 
     # Connects to TWS / IB Gateway if not already connected; returns True on success.
     # connect() is idempotent — safe to call multiple times.
@@ -301,7 +306,8 @@ class IBKRGateway:
     # Each open subscription counts as one Market Data Line, same as a TWS watchlist row.
     # Returns the reqId needed to stop this specific subscription later.
     def start_realtime_bars(self, contract: Contract, what_to_show: str = 'TRADES', use_rth: bool = True) -> int:
-        req_id = self.app.get_next_valid_id()
+        self._stream_req_id += 1
+        req_id = self._stream_req_id
         self.app.reqRealTimeBars(req_id, contract, 5, what_to_show, int(use_rth), [])
         return req_id
 
