@@ -1,0 +1,9 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-09-10 12:20:23.153446,JD,ibkr,enter_long,27.0,10.0,long
+2026-09-10 14:14:01.515489,JD,ibkr,exit_long_trail,26.96,10.0,flat
+2026-09-10 14:20:51.050376,ABNB,ibkr,enter_short,167.93,10.0,short
+2026-09-10 14:30:55.126927,FRSH,ibkr,enter_short,11.78,10.0,short
+2026-09-10 14:51:20.920571,FRSH,ibkr,exit_short_trail,11.82,10.0,flat
+2026-09-10 15:10:17.072460,ABNB,ibkr,exit_short_trail,168.18,10.0,flat
+2026-09-10 15:11:06.485256,DIS,ibkr,enter_long,105.03,10.0,long
+2026-09-10 15:41:13.369036,DIS,ibkr,exit_long_manual,105.1,10.0,flat
