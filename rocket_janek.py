@@ -20,7 +20,7 @@ import mplfinance as mpf
 from ibkr import IBKRGateway
 import positions_observer as po
 import params_lookup
-from signal_checks import check_vol_price_body, scan_trailing_stop, scan_take_profit
+from signal_checks import check_vol_price_body, check_vol_price_body_dir, scan_trailing_stop, scan_take_profit
 import time
 from logging_functions import init_trade_log, make_fill_handler, init_signal_log, log_signal_csv, EXCHANGE_TZ
 from common import RED, GREEN, YELLOW, BLUE, CYAN, WHITE, RESET, timeframe_to_seconds
@@ -46,6 +46,9 @@ TIMEFRAME = '10m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
+USE_DIRECTIONAL_PARAMS = False  # if True, trade long/short with independently-tuned entry & exit
+                                 # params (config.PARAMS' *_long/*_short keys, see tuner1.TUNE_DIRECTIONAL);
+                                 # if False (default), today's behavior — one shared param set for both.
 #FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value
 EXCHANGE_OPEN_TIME = datetime.time(9, 30)
 EXCHANGE_CLOSE_TIME = datetime.time(16, 0)
@@ -294,14 +297,35 @@ def main():
                   try:
                     #3. Parametry per-symbol — każdy symbol ma własną konfigurację:
                     params = params_lookup.get_params(config.PARAMS, 'MomentumV8Strategy', symbol, TIMEFRAME)
-                    vol_len = params.get('vol_len', 10)
-                    vol_multiplier = params.get('vol_multiplier', 1.8)
-                    price_move_pct = params.get('price_move_pct', 1.5)
-                    trail_stop_pct = params.get('trail_stop_pct', 1.0)
-                    body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
-                    take_profit_pct = params.get('take_profit_pct', 2.0)
+                    vol_len = params.get('vol_len', 10)  # shared for both directions regardless of USE_DIRECTIONAL_PARAMS
                     duration = f'{vol_len * tf_seconds} S'          # enough bars to fill vol_len
-                    logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, vol_multiplier={vol_multiplier}, price_move_pct={price_move_pct}, trail_stop_pct={trail_stop_pct}, take_profit_pct={take_profit_pct},body_ratio_threshold={body_ratio_threshold}{RESET}")
+
+                    if USE_DIRECTIONAL_PARAMS:
+                        # Each *_long/*_short key falls back to the plain (non-suffixed) key, so an
+                        # older, non-directional params file still works — both directions just get
+                        # the same value, identical to USE_DIRECTIONAL_PARAMS=False's behavior.
+                        long_params = {
+                            'vol_multiplier': params.get('vol_multiplier_long', params.get('vol_multiplier', 1.8)),
+                            'price_move_pct': params.get('price_move_pct_long', params.get('price_move_pct', 1.5)),
+                            'body_ratio_threshold': params.get('body_ratio_threshold_long', params.get('body_ratio_threshold', 0.5)),
+                            'trail_stop_pct': params.get('trail_stop_pct_long', params.get('trail_stop_pct', 1.0)),
+                            'take_profit_pct': params.get('take_profit_pct_long', params.get('take_profit_pct', 2.0)),
+                        }
+                        short_params = {
+                            'vol_multiplier': params.get('vol_multiplier_short', params.get('vol_multiplier', 1.8)),
+                            'price_move_pct': params.get('price_move_pct_short', params.get('price_move_pct', 1.5)),
+                            'body_ratio_threshold': params.get('body_ratio_threshold_short', params.get('body_ratio_threshold', 0.5)),
+                            'trail_stop_pct': params.get('trail_stop_pct_short', params.get('trail_stop_pct', 1.0)),
+                            'take_profit_pct': params.get('take_profit_pct_short', params.get('take_profit_pct', 2.0)),
+                        }
+                        logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, long={long_params}, short={short_params}{RESET}")
+                    else:
+                        vol_multiplier = params.get('vol_multiplier', 1.8)
+                        price_move_pct = params.get('price_move_pct', 1.5)
+                        trail_stop_pct = params.get('trail_stop_pct', 1.0)
+                        body_ratio_threshold = params.get('body_ratio_threshold', 0.5)
+                        take_profit_pct = params.get('take_profit_pct', 2.0)
+                        logger.debug(f"{YELLOW}{symbol}: vol_len={vol_len}, vol_multiplier={vol_multiplier}, price_move_pct={price_move_pct}, trail_stop_pct={trail_stop_pct}, take_profit_pct={take_profit_pct},body_ratio_threshold={body_ratio_threshold}{RESET}")
 
                     #4. Ściągnij dane z IBKR
                     df = fetch_data_from_IBKR(gw, symbol, duration, TIMEFRAME, use_rth=True, currency=SYMBOL_CURRENCY[symbol])
@@ -318,15 +342,25 @@ def main():
                         continue
 
                     #6. Entry logic
-                    signal, _, trail_stop_loss, debug, flags = check_vol_price_body(df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
-                    #trail_stop_loss = FIXED_TRAIL_STOP_PCT  # experiment: fixed tight stop instead of the tuned/dynamic one
-                    log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
+                    if USE_DIRECTIONAL_PARAMS:
+                        signal, _, debug, flags = check_vol_price_body_dir(df, long_params, short_params)
+                    else:
+                        signal, _, trail_stop_loss, debug, flags = check_vol_price_body(df, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+                        #trail_stop_loss = FIXED_TRAIL_STOP_PCT  # experiment: fixed tight stop instead of the tuned/dynamic one
+                    log_signal_csv(SIGNAL_LOG, symbol, signal, debug, flags)
                     if not LIVE_TRADING:
                         logger.debug(f'{YELLOW}{symbol}: LIVE_TRADING is off, skipping entry.{RESET}')
                     elif too_early:
                         logger.debug(f'{YELLOW}{symbol}: within {tf_seconds // 60}min warm-up after open, skipping entry.{RESET}')
                     else:
-                        result = execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_loss, FILL_TIMEOUT, positions)
+                        # Resolve the actual exit params to trade with — the direction-specific dict
+                        # once `signal` (hence direction) is known, or today's flat values otherwise.
+                        if USE_DIRECTIONAL_PARAMS:
+                            p = long_params if signal == 'BUY' else short_params
+                            trail_stop_used, take_profit_used = p['trail_stop_pct'], p['take_profit_pct']
+                        else:
+                            trail_stop_used, take_profit_used = trail_stop_loss, take_profit_pct
+                        result = execute_trade(gw, symbol, signal, contracts[symbol], QUANTITY, trail_stop_used, FILL_TIMEOUT, positions)
                         if result is not None:
                             entry, trail = result
                             open_trades[symbol] = {
@@ -335,9 +369,9 @@ def main():
                                 'entry_price': entry.orderStatus.avgFillPrice,
                                 'entry_time': datetime.datetime.now(datetime.timezone.utc),
                                 'entry_order_id': entry.order.orderId,
-                                'trail_stop_loss': trail_stop_loss,
+                                'trail_stop_loss': trail_stop_used,
                                 'extreme': entry.orderStatus.avgFillPrice,
-                                'take_profit_pct': take_profit_pct,
+                                'take_profit_pct': take_profit_used,
                                 'bars_since_check': 0,
                             }
                     last_processed_candle[symbol] = candle_time

@@ -19,7 +19,7 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from common import timeframe_to_seconds, RED, GREEN, WHITE, RESET
-from signal_checks import check_vol_price_body, scan_trailing_stop, scan_take_profit
+from signal_checks import check_vol_price_body, check_vol_price_body_dir, scan_trailing_stop, scan_take_profit
 import configs_rocketJanek as cfg
 
 load_dotenv()
@@ -131,18 +131,29 @@ def _session_close_cutoff(entry_time) -> datetime.datetime:
 
 # Usage: trades, checks = run_backtest(symbol, low_df, high_df, start_dt, timeframe, vol_len,
 #                                       vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, quantity)
+# Usage (directional): trades, checks = run_backtest(symbol, low_df, high_df, start_dt, timeframe, vol_len,
+#                                       0, 0, 0, 0, quantity, 0, long_params=long_params, short_params=short_params)
 def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start_dt, timeframe: str,
                   vol_len: int, vol_multiplier: float, price_move_pct: float, trail_stop_pct: float,
                   body_ratio_threshold: float, quantity: float,
-                  take_profit_pct: float) -> tuple[list[dict], list[dict]]:
+                  take_profit_pct: float, long_params: dict = None, short_params: dict = None) -> tuple[list[dict], list[dict]]:
     """Walk low_df candle-by-candle, calling check_vol_price_body() on each closed candle while flat —
     same window shape as the live loop (iloc[-2] = signal candle, iloc[-1] = next candle,
     standing in for the still-forming candle a live fetch would see). On a signal, fills at
     the next available 1m price, then scans high_df for whichever of the trailing stop or the
     take-profit target is hit first (bounded to the same trading session — see
     _session_close_cutoff), force-closing at the session cutoff if neither fires.
+
+    Pass both long_params and short_params (each {'vol_multiplier', 'price_move_pct',
+    'body_ratio_threshold', 'trail_stop_pct', 'take_profit_pct'}) to tune/trade long and short
+    with independent entry and exit parameters via check_vol_price_body_dir() — the flat
+    vol_multiplier/price_move_pct/trail_stop_pct/body_ratio_threshold/take_profit_pct args are then
+    ignored. Leave both None (default) for today's behavior: one shared parameter set for both
+    directions via check_vol_price_body(), unchanged.
+
     Returns (trades, checks) — checks records every candle evaluated while flat, signal or not,
     so a day with zero trades still shows why nothing fired."""
+    directional = long_params is not None and short_params is not None
     bar_duration = pd.Timedelta(seconds=timeframe_to_seconds(timeframe))
     trades = []
     checks = []
@@ -158,23 +169,40 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
         # Same window shape check_vol_price_body() expects live: vol_len bars, candle i is iloc[-2]
         # (the signal candle), candle i+1 stands in for the still-forming iloc[-1] candle.
         window = low_df.iloc[i - vol_len + 2: i + 2].copy() #check_vol_price_body reads teh signal candle from a fixed position in the window iloc[-2]
-        signal, _, trail_stop_loss, debug, flags = check_vol_price_body(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
-        green_volume, green_price, red_price, green_body = flags
-        checks.append({
-            'symbol': symbol,
-            'signal_time': low_df.index[i],
-            'signal': signal or 'none',
-            'volume': debug['volume'],
-            'mean_volume': debug['mean_volume'],
-            'current_pct': debug['current_pct'],
-            'price_threshold': debug['price_threshold'],
-            'trail_stop_pct': trail_stop_loss,
-            'body_ratio': debug['body_ratio'],
-            'green_volume': green_volume,
-            'green_price': green_price,
-            'red_price': red_price,
-            'green_body': green_body,
-        })
+        if directional:
+            signal, _, debug, flags = check_vol_price_body_dir(window, long_params, short_params)
+            checks.append({
+                'symbol': symbol,
+                'signal_time': low_df.index[i],
+                'signal': signal or 'none',
+                'volume': debug['volume'],
+                'mean_volume': debug['mean_volume'],
+                'current_pct': debug['current_pct'],
+                'price_threshold_long': debug['price_threshold_long'],
+                'price_threshold_short': debug['price_threshold_short'],
+                'body_ratio': debug['body_ratio'],
+                'green_volume_long': flags[0], 'green_volume_short': flags[1],
+                'green_price': flags[2], 'red_price': flags[3],
+                'green_body_long': flags[4], 'green_body_short': flags[5],
+            })
+        else:
+            signal, _, trail_stop_loss, debug, flags = check_vol_price_body(window, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold)
+            green_volume, green_price, red_price, green_body = flags
+            checks.append({
+                'symbol': symbol,
+                'signal_time': low_df.index[i],
+                'signal': signal or 'none',
+                'volume': debug['volume'],
+                'mean_volume': debug['mean_volume'],
+                'current_pct': debug['current_pct'],
+                'price_threshold': debug['price_threshold'],
+                'trail_stop_pct': trail_stop_loss,
+                'body_ratio': debug['body_ratio'],
+                'green_volume': green_volume,
+                'green_price': green_price,
+                'red_price': red_price,
+                'green_body': green_body,
+            })
         if not signal:
             i += 1
             continue
@@ -189,6 +217,13 @@ def run_backtest(symbol: str, low_df: pd.DataFrame, high_df: pd.DataFrame, start
         entry_time = entry_bars.index[0]
         entry_price = entry_bars.iloc[0]['Open']
         direction = 'long' if signal == 'BUY' else 'short'
+
+        # Once direction is known, resolve the exit parameters that actually apply — the
+        # direction-specific dict in directional mode, or today's flat shared values otherwise.
+        if directional:
+            p = long_params if direction == 'long' else short_params
+            trail_stop_loss = p['trail_stop_pct']
+            take_profit_pct = p['take_profit_pct']
 
         # Bound the scan to this trading session only, so a trade that never hits its stop or
         # target doesn't ride into the next day (previously it could scan past session boundaries
@@ -431,7 +466,24 @@ def printing_trades(ticker: str, start_dt, end_day, timeframe: str, trades: list
 # Usage: printing_checks(checks)
 def printing_checks(checks: list[dict]) -> None:
     """Every candle evaluated while flat, whether or not it fired — shows why a signal didn't
-    trigger just as clearly as why one did."""
+    trigger just as clearly as why one did. Handles both run_backtest() shapes: shared-params
+    checks (one price_threshold/trail_stop_pct) and directional checks (long/short each)."""
+    directional = bool(checks) and 'price_threshold_long' in checks[0]
+    if directional:
+        print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  "
+              f"{'price_thr_long':>15}  {'price_thr_short':>16}  {'body_ratio':>11}")
+        for i, c in enumerate(checks, 1):
+            volume_color = GREEN if (c['green_volume_long'] or c['green_volume_short']) else WHITE
+            volume_str = f"{volume_color}{c['volume']:>10.0f}{RESET}"
+            pct_color = GREEN if c['green_price'] else RED if c['red_price'] else WHITE
+            pct_str = f"{pct_color}{c['current_pct']:>+11.2f}%{RESET}"
+            body_color = GREEN if (c['green_body_long'] or c['green_body_short']) else WHITE
+            body_str = f"{body_color}{c['body_ratio']:>11.2f}{RESET}"
+            print(f"  {i:>3}  {str(c['signal_time']):25}  {c['signal']:6}  "
+                  f"{volume_str}  {c['mean_volume']:>12.0f}  {pct_str}  "
+                  f"{c['price_threshold_long']:>14.2f}%  {c['price_threshold_short']:>15.2f}%  {body_str}")
+        return
+
     print(f"\n  {'#':>3}  {'signal_time':25}  {'signal':6}  {'volume':>10}  {'mean_volume':>12}  {'current_pct':>12}  {'price_threshold':>16}  {'trail_stop_pct':>15}  {'body_ratio':>11}")
     for i, c in enumerate(checks, 1):
         # Pad the plain text to fixed width first, then wrap in color — ANSI codes would

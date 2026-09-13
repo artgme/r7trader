@@ -30,8 +30,15 @@ def log_trade_csv(log_path: Path, action: str, symbol: str, price: float, size: 
 
 
 _SIGNAL_CSV_HEADERS = ['timestamp', 'symbol', 'signal', 'volume', 'mean_volume', 'current_pct',
-                       'price_threshold', 'trail_stop_pct', 'body_ratio', 'green_volume', 'green_price',
-                       'red_price', 'green_body']
+                       'price_threshold', 'body_ratio', 'green_volume', 'green_price', 'red_price', 'green_body',
+                       'price_threshold_long', 'price_threshold_short', 'green_volume_long', 'green_volume_short',
+                       'green_body_long', 'green_body_short']
+# trail_stop_pct used to live here, but it's no longer a "check" quantity — since the trailing
+# stop split by direction, which value actually applies is an execution-time decision made once
+# `direction` is known (see rocket_janek.py / run_backtest()), not something check_vol_price_body()
+# computes. The price_threshold_*/green_*_long/short columns are blank for a shared-params call
+# (check_vol_price_body()) and the plain price_threshold/green_* columns are blank for a
+# directional call (check_vol_price_body_dir()) — whichever wasn't used for that call.
 
 
 def init_signal_log(log_path: Path):
@@ -41,17 +48,31 @@ def init_signal_log(log_path: Path):
             csv.writer(f).writerow(_SIGNAL_CSV_HEADERS)
 
 
-# Usage: log_signal_csv(SIGNAL_LOG, symbol, signal, trail_stop_loss, debug, flags)
-def log_signal_csv(log_path: Path, symbol: str, signal: str, trail_stop_loss: float, debug: dict, flags: list):
+# Usage: log_signal_csv(SIGNAL_LOG, symbol, signal, debug, flags)
+def log_signal_csv(log_path: Path, symbol: str, signal: str, debug: dict, flags: list):
+    """Accepts either check_vol_price_body()'s shared-params debug/flags (price_threshold, 4
+    flags) or check_vol_price_body_dir()'s directional ones (price_threshold_long/short, 6
+    flags) — detected from debug's keys — and logs whichever wasn't used for this call as blank."""
     if not log_path.exists():
         init_signal_log(log_path)
-    green_volume, green_price, red_price, green_body = flags
+    directional = 'price_threshold_long' in debug
+    if directional:
+        green_volume_long, green_volume_short, green_price, red_price, green_body_long, green_body_short = flags
+        price_threshold, green_volume, green_body = '', '', ''
+        price_threshold_long, price_threshold_short = debug['price_threshold_long'], debug['price_threshold_short']
+    else:
+        green_volume, green_price, red_price, green_body = flags
+        price_threshold = debug['price_threshold']
+        price_threshold_long = price_threshold_short = ''
+        green_volume_long = green_volume_short = green_body_long = green_body_short = ''
     with open(log_path, 'a', newline='') as f:
         csv.writer(f).writerow([
             datetime.datetime.now(EXCHANGE_TZ).strftime('%Y-%m-%d %H:%M:%S.%f'),
             symbol, signal or 'none',
-            debug['volume'], debug['mean_volume'], debug['current_pct'], debug['price_threshold'], trail_stop_loss,
-            debug['body_ratio'], green_volume, green_price, red_price, green_body,
+            debug['volume'], debug['mean_volume'], debug['current_pct'], price_threshold, debug['body_ratio'],
+            green_volume, green_price, red_price, green_body,
+            price_threshold_long, price_threshold_short, green_volume_long, green_volume_short,
+            green_body_long, green_body_short,
         ])
 
 
@@ -59,10 +80,14 @@ _LEGACY_TAKE_PROFIT_PCT = 2.0  # backtester_alpaca's flat take-profit default be
                                 # added — used only as a fallback when reloading an older tuning
                                 # log that predates the take_profit_pct column
 
-_TUNING_CSV_HEADERS = ['tuned_at', 'ticker', 'timeframe', 'run_start', 'run_end',
+_TUNING_CSV_HEADERS = ['tuned_at', 'ticker', 'timeframe', 'direction', 'run_start', 'run_end',
                        'vol_len', 'vol_multiplier', 'price_move_pct', 'trail_stop_pct', 'body_ratio_threshold',
                        'take_profit_pct', 'trade_count', 'win_rate', 'total_pnl', 'expectancy',
                        'max_drawdown', 'profit_factor', 'sharpe', 'sortino', 'recovery_factor', 'combined_score']
+# 'direction' is 'shared' for a combo tuned with one parameter set covering both directions (today's
+# default), or 'long'/'short' for one half of a directional sweep (see tuner1.TUNE_DIRECTIONAL) —
+# in both cases the vol_multiplier/price_move_pct/trail_stop_pct/body_ratio_threshold/take_profit_pct
+# columns hold whichever direction's values that row actually searched, same column names either way.
 
 # Score columns added after the first sweeps — load_tuning_log() fills them with NaN for any
 # older log that predates them (they can't be recomputed without the per-trade data).
@@ -89,7 +114,7 @@ def log_tuning_csv(log_path: Path, ticker: str, timeframe: str, run_start, run_e
         writer = csv.writer(f)
         for r in results:
             writer.writerow([
-                tuned_at, ticker, timeframe, run_start, run_end,
+                tuned_at, ticker, timeframe, r.get('direction', 'shared'), run_start, run_end,
                 r['vol_len'], r['vol_multiplier'], r['price_move_pct'], r['trail_stop_pct'], r['body_ratio_threshold'],
                 r['take_profit_pct'], r['trade_count'], r['win_rate'], r['total_pnl'], r['expectancy'],
                 r['max_drawdown'], r['profit_factor'], r['sharpe'], r['sortino'], r['recovery_factor'], r['combined_score'],
@@ -105,6 +130,9 @@ def load_tuning_log(log_path: Path) -> dict[str, list[dict]]:
     with open(log_path, newline='') as f:
         for row in csv.DictReader(f):
             rec = {
+                # older logs predate the long/short directional sweep — every row in them was
+                # tuned with one shared parameter set, so 'shared' is the correct fallback, not a guess.
+                'direction': row.get('direction') or 'shared',
                 'vol_len': int(row['vol_len']),
                 'vol_multiplier': float(row['vol_multiplier']),
                 'price_move_pct': float(row['price_move_pct']),

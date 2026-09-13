@@ -27,7 +27,7 @@ from logging_functions import log_tuning_csv, EXCHANGE_TZ
 # inner loop is reimplemented here.
 from tuner1 import (
     score_trades, print_results_table, save_best_params, plot_3d, print_ticker_ranking,
-    rank_key, SELECTION_METRIC,
+    rank_key, SELECTION_METRIC, TUNE_DIRECTIONAL, DISABLED_BODY_RATIO_THRESHOLD,
     TICKERS, TIMEFRAME, START_DT, END_DAY, QUANTITY,
     VOL_LEN_RANGE, VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
     TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE,
@@ -55,43 +55,78 @@ def _init_worker(low_df, high_df) -> None:
 
 
 # Usage: result = _run_one_combo(ticker, vol_len, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, take_profit_pct)
+# Usage (directional): result = _run_one_combo(ticker, vol_len, vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, take_profit_pct, direction='long')
 def _run_one_combo(ticker: str, vol_len: int, vol_multiplier: float, price_move_pct: float,
-                    trail_stop_pct: float, body_ratio_threshold: float, take_profit_pct: float) -> dict:
+                    trail_stop_pct: float, body_ratio_threshold: float, take_profit_pct: float,
+                    direction: str = None) -> dict:
     """Runs inside a worker process: one run_backtest() call for one grid combo, against the
     low_df/high_df this worker was handed once by _init_worker(). Returns the same per-combo
     result dict shape tuner1.tune_ticker() has always built, so everything downstream (sorting,
-    printing, saving, plotting) works unmodified on the results this produces."""
+    printing, saving, plotting) works unmodified on the results this produces.
+
+    direction=None (default): today's shared-params call, tagged 'direction': 'shared'.
+    direction='long'/'short': the OTHER direction gets tuner1.DISABLED_BODY_RATIO_THRESHOLD so it
+    can never fire (see tuner1.tune_ticker()'s directional branch for why this decouples the
+    long/short sweeps instead of squaring the grid)."""
+    if direction is None:
+        trades, _ = run_backtest(ticker, _worker_low_df, _worker_high_df, START_DT, TIMEFRAME, vol_len,
+                                  vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY,
+                                  take_profit_pct=take_profit_pct)
+        return {
+            'direction': 'shared',
+            'vol_len': vol_len,
+            'vol_multiplier': vol_multiplier,
+            'price_move_pct': price_move_pct,
+            'trail_stop_pct': trail_stop_pct,
+            'body_ratio_threshold': body_ratio_threshold,
+            'take_profit_pct': take_profit_pct,
+            **score_trades(trades),
+        }
+
+    this_params = {'vol_multiplier': vol_multiplier, 'price_move_pct': price_move_pct,
+                   'trail_stop_pct': trail_stop_pct, 'body_ratio_threshold': body_ratio_threshold,
+                   'take_profit_pct': take_profit_pct}
+    disabled_params = {'vol_multiplier': 1.0, 'price_move_pct': 1.0, 'trail_stop_pct': 1.0,
+                        'body_ratio_threshold': DISABLED_BODY_RATIO_THRESHOLD, 'take_profit_pct': 1.0}
+    long_params = this_params if direction == 'long' else disabled_params
+    short_params = this_params if direction == 'short' else disabled_params
     trades, _ = run_backtest(ticker, _worker_low_df, _worker_high_df, START_DT, TIMEFRAME, vol_len,
-                              vol_multiplier, price_move_pct, trail_stop_pct, body_ratio_threshold, QUANTITY,
-                              take_profit_pct=take_profit_pct)
-    return {
-        'vol_len': vol_len,
-        'vol_multiplier': vol_multiplier,
-        'price_move_pct': price_move_pct,
-        'trail_stop_pct': trail_stop_pct,
-        'body_ratio_threshold': body_ratio_threshold,
-        'take_profit_pct': take_profit_pct,
-        **score_trades(trades),
-    }
+                              0, 0, 0, 0, QUANTITY, 0, long_params=long_params, short_params=short_params)
+    return {'direction': direction, 'vol_len': vol_len, **this_params, **score_trades(trades)}
+
 
 # Usage: results = tune_ticker(ticker, low_df, high_df)
 def tune_ticker(ticker: str, low_df, high_df) -> list[dict]:
     """Grid-search every parameter combination for one ticker, spread across MAX_WORKERS worker
     processes (default: one per CPU core). low_df/high_df are fetched once in main() exactly as
-    in tuner1.py — this function still makes no network calls itself."""
-    combos = list(itertools.product(VOL_LEN_RANGE, VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
-                                     TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE))
-    total = len(combos)
+    in tuner1.py — this function still makes no network calls itself. Mirrors tuner1.tune_ticker()'s
+    TUNE_DIRECTIONAL branch (see there for the combinatorics reasoning); only the mechanics of
+    submitting each combo to the pool differ."""
+    if not TUNE_DIRECTIONAL:
+        combos = list(itertools.product(VOL_LEN_RANGE, VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
+                                         TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE))
+        submit_args = [(ticker, *combo) for combo in combos]
+        print(f'{ticker}: grid size {len(combos)} combos '
+              f'({len(VOL_LEN_RANGE)} vol_len × {len(VOL_MULTIPLIER_RANGE)} vol_multiplier × '
+              f'{len(PRICE_MOVE_PCT_RANGE)} price_move_pct × {len(TRAIL_STOP_PCT_RANGE)} trail_stop_pct × '
+              f'{len(BODY_RATIO_THRESHOLD_RANGE)} body_ratio_threshold × '
+              f'{len(TAKE_PROFIT_PCT_RANGE)} take_profit_pct)')
+    else:
+        dim_combos = list(itertools.product(VOL_MULTIPLIER_RANGE, PRICE_MOVE_PCT_RANGE,
+                                             TRAIL_STOP_PCT_RANGE, BODY_RATIO_THRESHOLD_RANGE, TAKE_PROFIT_PCT_RANGE))
+        submit_args = [(ticker, vol_len, *dim, direction)
+                       for vol_len in VOL_LEN_RANGE for direction in ('long', 'short') for dim in dim_combos]
+        print(f'{ticker}: directional grid size {len(submit_args)} combos '
+              f'({len(VOL_LEN_RANGE)} vol_len × {len(dim_combos)} (vol_multiplier × price_move_pct × '
+              f'trail_stop_pct × body_ratio_threshold × take_profit_pct) × 2 directions)')
+
+    total = len(submit_args)
     workers = MAX_WORKERS or os.cpu_count()
-    print(f'{ticker}: grid size {total} combos '
-          f'({len(VOL_LEN_RANGE)} vol_len × {len(VOL_MULTIPLIER_RANGE)} vol_multiplier × '
-          f'{len(PRICE_MOVE_PCT_RANGE)} price_move_pct × {len(TRAIL_STOP_PCT_RANGE)} trail_stop_pct × '
-          f'{len(BODY_RATIO_THRESHOLD_RANGE)} body_ratio_threshold × '
-          f'{len(TAKE_PROFIT_PCT_RANGE)} take_profit_pct), {workers} worker process(es)')
+    print(f'  {workers} worker process(es)')
 
     results = []
     with ProcessPoolExecutor(max_workers=MAX_WORKERS, initializer=_init_worker, initargs=(low_df, high_df)) as executor:
-        futures = [executor.submit(_run_one_combo, ticker, *combo) for combo in combos]
+        futures = [executor.submit(_run_one_combo, *args) for args in submit_args]
         # as_completed() yields whichever future finishes next, not in submission order — fine,
         # since `results` gets sorted by total_pnl afterwards anyway either way.
         for i, future in enumerate(as_completed(futures), 1):
@@ -124,7 +159,11 @@ def main():
         print_results_table(ticker, results)
         save_best_params(ticker, results)
         results_by_ticker[ticker] = results
-        plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy')
+        if TUNE_DIRECTIONAL:
+            plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy', direction='long')
+            plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy', direction='short')
+        else:
+            plot_3d(ticker, results, 'vol_multiplier', 'trail_stop_pct', 'expectancy')
 
     print_ticker_ranking(results_by_ticker)
     plt.show()  # blocks once, here, after every ticker's figure has been built

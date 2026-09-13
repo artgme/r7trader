@@ -32,11 +32,15 @@ LOWER_IS_BETTER = ('max_drawdown',)  # for these, "best" means the smallest valu
 
 
 # Usage: plot_3d(CSV_PATH, 'VOYG', 'vol_multiplier', 'trail_stop_pct', 'expectancy')
-def plot_3d(csv_path: Path, ticker: str, param_x: str, param_y: str, z_metric: str) -> None:
+# Usage (directional log): plot_3d(CSV_PATH, 'VOYG', 'vol_multiplier', 'trail_stop_pct', 'expectancy', direction='long')
+def plot_3d(csv_path: Path, ticker: str, param_x: str, param_y: str, z_metric: str, direction: str = None) -> None:
     """3D surface of 2 tuned parameters (x, y) against a chosen performance metric (z_metric, any
     of METRICS), read straight from a saved tuning-log CSV. Each grid point is the best z_metric
     found across all values of the other tuned parameters for that (x, y) combination. Builds the
-    figure but doesn't show it — call plt.show() once after plotting everything so none block."""
+    figure but doesn't show it — call plt.show() once after plotting everything so none block.
+    Pass direction='long'/'short'/'shared' to filter first — required for a log produced with
+    tuner1.TUNE_DIRECTIONAL=True (mixed long/short rows), so a long-tuned combo and a short-tuned
+    combo aren't mixed onto the same surface. Omit it for a 'shared' (non-directional) log."""
     if z_metric not in METRICS:
         raise ValueError(f"z_metric must be one of {METRICS}")
 
@@ -44,6 +48,8 @@ def plot_3d(csv_path: Path, ticker: str, param_x: str, param_y: str, z_metric: s
     if ticker not in results_by_ticker:
         raise ValueError(f"{ticker} not in {csv_path} — has {sorted(results_by_ticker)}")
     results = results_by_ticker[ticker]
+    if direction is not None:
+        results = [r for r in results if r['direction'] == direction]
     pick = min if z_metric in LOWER_IS_BETTER else max
 
     best: dict[tuple, float] = {}
@@ -72,12 +78,14 @@ def plot_3d(csv_path: Path, ticker: str, param_x: str, param_y: str, z_metric: s
 
 
 # Usage: plot_2d(CSV_PATH, 'VOYG', 'vol_multiplier', 'expectancy', fit_deg=2)
-def plot_2d(csv_path: Path, ticker: str, param_x: str, y_metric: str, fit_deg: int = 2) -> None:
+# Usage (directional log): plot_2d(CSV_PATH, 'VOYG', 'vol_multiplier', 'expectancy', direction='long')
+def plot_2d(csv_path: Path, ticker: str, param_x: str, y_metric: str, fit_deg: int = 2, direction: str = None) -> None:
     """2D scatter of one tuned parameter (param_x, one of PARAMS) against one performance metric
     (y_metric, one of METRICS), read straight from a saved tuning-log CSV. Every grid combo is one
     dot (the other params vary along each column of dots), with the per-x mean and best lines
     overlaid and, if fit_deg > 0, a degree-fit_deg polynomial least-squares curve through the raw
-    cloud. Builds the figure but doesn't show it — call plt.show() once after plotting everything."""
+    cloud. Builds the figure but doesn't show it — call plt.show() once after plotting everything.
+    Pass direction='long'/'short'/'shared' to filter first — see plot_3d()'s docstring."""
     if y_metric not in METRICS:
         raise ValueError(f"y_metric must be one of {METRICS}")
 
@@ -86,6 +94,8 @@ def plot_2d(csv_path: Path, ticker: str, param_x: str, y_metric: str, fit_deg: i
         raise ValueError(f"{ticker} not in {csv_path} — has {sorted(results_by_ticker)}")
 
     rows = results_by_ticker[ticker]
+    if direction is not None:
+        rows = [r for r in rows if r['direction'] == direction]
     x_all = np.array([r[param_x] for r in rows], dtype=float)
     y_all = np.array([r[y_metric] for r in rows], dtype=float)
     finite = np.isfinite(x_all) & np.isfinite(y_all)  # drop inf (profit_factor / recovery_factor) and NaN

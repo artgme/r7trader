@@ -57,6 +57,70 @@ def check_vol_price_body(df: pd.DataFrame, vol_multiplier: float, price_move_pct
     return SIGNAL, price, trail_stop_loss, debug, flags
 
 
+# Usage: signal, price, debug, flags = check_vol_price_body_dir(df, long_params, short_params)
+# long_params / short_params: {'vol_multiplier', 'price_move_pct', 'body_ratio_threshold',
+#                               'trail_stop_pct', 'take_profit_pct'}
+def check_vol_price_body_dir(df: pd.DataFrame, long_params: dict, short_params: dict) -> tuple:
+    """Directional counterpart to check_vol_price_body(): BUY is evaluated against long_params'
+    vol_multiplier/price_move_pct/body_ratio_threshold and SELL against short_params', instead of
+    both directions sharing one set of thresholds. trail_stop_pct/take_profit_pct ride along in
+    each dict for the caller's convenience but aren't read here — once `direction` is known
+    (from the returned SIGNAL), the caller picks long_params or short_params for the exit too.
+    Returns (SIGNAL, price, debug, flags) — no trail_stop_loss, unlike check_vol_price_body()."""
+    #1. Aktualne dane
+    last_candle = df.iloc[-2]
+    price = last_candle['Close']
+    volume = last_candle['Volume']
+
+    #2. Zaktualizuj indykatory
+    df['candle_pct'] = 100 * (df['Close'] - df['Open']) / df['Open'].replace(0, float('nan'))
+    current_pct = df['candle_pct'].iloc[-2]
+    mean_abs_change = df['candle_pct'].abs().iloc[:-2].mean()
+    mean_volume = df['Volume'].iloc[:-2].mean()
+
+    volume_threshold_long = mean_volume * long_params['vol_multiplier']
+    volume_threshold_short = mean_volume * short_params['vol_multiplier']
+    price_threshold_long = mean_abs_change * long_params['price_move_pct']
+    price_threshold_short = mean_abs_change * short_params['price_move_pct']
+
+    # Body-to-range ratio: 1.0 = pure body (strong conviction), 0.0 = pure wick (indecision).
+    candle_body = abs(last_candle['Close'] - last_candle['Open'])
+    candle_range = last_candle['High'] - last_candle['Low']
+    body_ratio = candle_body / candle_range if candle_range > 0 else 0.0
+    green_body_long = body_ratio > long_params['body_ratio_threshold']
+    green_body_short = body_ratio > short_params['body_ratio_threshold']
+
+    green_volume_long = volume > volume_threshold_long
+    green_volume_short = volume > volume_threshold_short
+    green_price = current_pct > price_threshold_long
+    red_price = current_pct < -price_threshold_short
+
+    logger.info(f'{YELLOW}volume: {volume:.2f}, mean_volume: {mean_volume:.2f}, current_pct: {current_pct:.2f}, '
+                f'price_threshold_long: {price_threshold_long:.2f}, price_threshold_short: {price_threshold_short:.2f}, '
+                f'body_ratio: {body_ratio:.2f}{RESET}')
+    #3. Check conditions for buy/sell signals, each against its own direction's thresholds
+    if green_volume_long and green_price and green_body_long:
+        logger.info(f'{GREEN}BUY: candle_pct {current_pct:.2f}% > {price_threshold_long:.2f}% | '
+                    f'volume {volume:.0f} > {volume_threshold_long:.0f} | '
+                    f'body_ratio {body_ratio:.2f} > {long_params["body_ratio_threshold"]:.2f}{RESET}')
+        SIGNAL = 'BUY'
+    elif green_volume_short and red_price and green_body_short:
+        logger.info(f'{CYAN}SELL: candle_pct {current_pct:.2f}% < -{price_threshold_short:.2f}% | '
+                    f'volume {volume:.0f} > {volume_threshold_short:.0f} | '
+                    f'body_ratio {body_ratio:.2f} > {short_params["body_ratio_threshold"]:.2f}{RESET}')
+        SIGNAL = 'SELL'
+    else:
+        SIGNAL = None
+
+    debug = {
+        'volume': volume, 'mean_volume': mean_volume, 'current_pct': current_pct,
+        'price_threshold_long': price_threshold_long, 'price_threshold_short': price_threshold_short,
+        'body_ratio': body_ratio,
+    }
+    flags = [green_volume_long, green_volume_short, green_price, red_price, green_body_long, green_body_short]
+    return SIGNAL, price, debug, flags
+
+
 # Usage: extreme, exit_time, exit_price = scan_trailing_stop(high_df, entry_time, entry_price, 'long', 1.2)
 def scan_trailing_stop(high_df: pd.DataFrame, entry_time, entry_price: float, direction: str, trail_pct: float, extreme: float = None) -> tuple:
     """Walk bars forward from entry_time, updating the trailing peak/trough each bar and checking
