@@ -1,0 +1,5 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-09-14 09:48:57.134133,DIS,ibkr,enter_long,108.4,10.0,long
+2026-09-14 09:48:59.072873,LUV,ibkr,enter_long,38.77,10.0,long
+2026-09-14 10:59:12.828200,PATH,ibkr,enter_long,14.47,10.0,long
+2026-09-14 12:59:35.972747,CSCO,ibkr,enter_long,111.51,10.0,long

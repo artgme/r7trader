@@ -11,6 +11,7 @@ logging.getLogger('ibapi').setLevel(logging.WARNING)  # silence the IB API's per
 
 import datetime
 import importlib
+import threading
 from collections import deque
 from pathlib import Path
 
@@ -190,6 +191,16 @@ def main():
     symbol_by_req_id: dict[int, str] = {}
     realtime_req_id_by_symbol: dict[str, int] = {}
 
+    # Symbols _on_realtime_bar wants closed, drained by the main loop below (not by
+    # _on_realtime_bar itself). _on_realtime_bar runs on ibapi's single message-dispatch thread —
+    # the same thread that would have to process a close order's response — so a synchronous,
+    # response-waiting call like gw.close_position() made from inside it can never receive that
+    # response (the thread is busy waiting for it instead of reading it) and always times out
+    # after 10s, misreported as "No open position". Flagging here and closing from the main
+    # thread's own loop avoids that self-deadlock entirely.
+    pending_closes: set[str] = set()
+    pending_closes_lock = threading.Lock()
+
 
     #zapisuje kazdy fill do logu i usuwa z open_trades jesli to exit fill
     def _on_fill(trade, fill):
@@ -232,11 +243,10 @@ def main():
             window_df, trade['entry_time'], trade['entry_price'], trade['direction'], trade['take_profit_pct'],
         )
         if tp_price is not None:
-            logger.info(f'{GREEN}Client-side take-profit hit for {symbol} at {tp_price:.4f} — closing.{RESET}')
-            try:
-                gw.close_position(trade['contract'])
-            except ValueError as e:
-                logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
+            logger.info(f'{GREEN}Client-side take-profit hit for {symbol} at {tp_price:.4f} — '
+                        f'flagging for close on the main loop.{RESET}')
+            with pending_closes_lock:
+                pending_closes.add(symbol)
             return
 
         extreme, exit_time, exit_price = scan_trailing_stop(
@@ -246,11 +256,9 @@ def main():
         trade['extreme'] = extreme
         if exit_price is not None:
             logger.info(f'{YELLOW}Client-side trailing stop hit for {symbol} at {exit_price:.4f} '
-                        f'(extreme={extreme:.4f}) — closing.{RESET}')
-            try:
-                gw.close_position(trade['contract'])
-            except ValueError as e:
-                logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
+                        f'(extreme={extreme:.4f}) — flagging for close on the main loop.{RESET}')
+            with pending_closes_lock:
+                pending_closes.add(symbol)
 
     gw.on_realtime_bar(_on_realtime_bar) #appends the function to the list of callbacks
 
@@ -283,6 +291,20 @@ def main():
                 logger.error('Lost connection and could not reconnect. Exiting.')
                 break
             #logger.debug('...')
+
+            # Close whatever _on_realtime_bar flagged since the last pass — safe here, this runs
+            # on the main thread, not ibapi's message-dispatch thread (see pending_closes' comment
+            # above for why that distinction matters). Runs every CHECK_INTERVAL, independent of
+            # the slower per-symbol fetch cadence below, so a flagged close isn't held up by it.
+            with pending_closes_lock:
+                to_close = list(pending_closes)
+                pending_closes.difference_update(to_close)
+            for symbol in to_close:
+                try:
+                    gw.close_position(contracts[symbol])
+                except ValueError as e:
+                    logger.warning(f'{YELLOW}Could not close {symbol}: {e}{RESET}')
+
             now = time.time()
             closing_time = get_exchange_closing_time(now)
             today = datetime.datetime.fromtimestamp(now, tz=EXCHANGE_TZ).date()
