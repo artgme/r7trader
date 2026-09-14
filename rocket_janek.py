@@ -27,10 +27,11 @@ from common import RED, GREEN, YELLOW, BLUE, CYAN, WHITE, RESET, timeframe_to_se
 
 CLIENT_ID=79
 
-CONFIG_MODULE = 'tuner1_found_params5'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
+CONFIG_MODULE = 'tuner1_found_params6'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = ['ASTS','ALAB','VOYG','NXT','PATH','HPQ','ABNB','LUV','FRSH','JD','DIS']
+SYMBOLS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP']
+#    'ASTS','ALAB','VOYG','NXT','PATH','HPQ','ABNB','LUV','FRSH','JD','DIS']
 # SYMBOLS = [
 #     'AMAT', 'LITE', 'ALAB', 'STX', 'CIEN', 'AMD', 'MPWR', 'SIMO', 'BE', 'ISRG',
 #     'CRDO', 'ENTG', 'MXL', 'NBIS', 'KLAC', 'AMKR', 'DELL', 'AEHR', 'MRVL', 'HOOD',
@@ -46,7 +47,7 @@ TIMEFRAME = '10m'
 QUANTITY = 10
 FILL_TIMEOUT = 10
 LIVE_TRADING = True
-USE_DIRECTIONAL_PARAMS = False  # if True, trade long/short with independently-tuned entry & exit
+USE_DIRECTIONAL_PARAMS = True  # if True, trade long/short with independently-tuned entry & exit
                                  # params (config.PARAMS' *_long/*_short keys, see tuner1.TUNE_DIRECTIONAL);
                                  # if False (default), today's behavior — one shared param set for both.
 #FIXED_TRAIL_STOP_PCT = 0.5  # experiment: overrides the tuned/dynamic trail_stop_loss with a fixed value

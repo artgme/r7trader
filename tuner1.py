@@ -29,12 +29,13 @@ FOUND_PARAMS_FILE = Path('tuner1_found_params6.py')
 # capped at 8 per sector so Electronic technology/Technology services don't crowd out everything
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
 #TICKERS = ['VOYG', 'ISRG','ASTS']  # tuned one at a time, results reported per ticker
-TICKERS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP','JD','ABNB','FRSH','TMO','HALO',
-      'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
-      'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
-      'LITE', 'RBLX', 'CDE', 'DHI', 'ENTG', 'CVNA', 'JHX', 'IREN', 'MWH', 'QXO',
-      'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',
-      'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL']
+TICKERS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP']
+# ,'JD','ABNB','FRSH','TMO','HALO',
+#       'ISRG', 'AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
+#       'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
+#       'LITE', 'RBLX', 'CDE', 'DHI', 'ENTG', 'CVNA', 'JHX', 'IREN', 'MWH', 'QXO',
+#       'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',
+#       'SHC', 'HL', 'LYFT', 'IVZ', 'LEN', 'CLF', 'RCL', 'APO', 'APTV', 'DAL']
 TIMEFRAME = '10m'
 START_DT = datetime.datetime(2026, 6, 1, 9, 30, tzinfo=ZoneInfo('America/New_York'))
 END_DAY = datetime.date(2026, 9, 4)
