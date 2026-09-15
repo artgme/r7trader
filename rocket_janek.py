@@ -31,7 +31,8 @@ CLIENT_ID=79
 CONFIG_MODULE = 'tuner1_found_params6'  # swap to e.g. 'tuner1_found_params' to trade tuner-found params instead
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
-SYMBOLS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP']
+SYMBOLS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP',
+           'JD','ABNB','FRSH','TMO','HALO','ISRG']
 #    'ASTS','ALAB','VOYG','NXT','PATH','HPQ','ABNB','LUV','FRSH','JD','DIS']
 # SYMBOLS = [
 #     'AMAT', 'LITE', 'ALAB', 'STX', 'CIEN', 'AMD', 'MPWR', 'SIMO', 'BE', 'ISRG',
@@ -58,7 +59,6 @@ CLOSE_OVERNIGHT = True  # if True, flatten every open position shortly before th
 CLOSE_BEFORE_SECONDS = 1200  # how far ahead of the close to flatten, when CLOSE_OVERNIGHT is on
 LIVE_WINDOW_BARS = 12  # reqRealTimeBars() only ever hands back 5s bars; 12 of them = 1 minute
                         # between client-side trailing-stop / take-profit checks (per symbol)
-TAKE_PROFIT_RR = 2.0   # experiment: take-profit target = trail_stop_loss × this risk:reward multiple
 
 LOG_SUFFIX = f"{datetime.datetime.now(EXCHANGE_TZ).strftime('%Y%m%d_%H%M')}_{TIMEFRAME}"
 TRADE_LOG = Path(f'logs/trades_{LOG_SUFFIX}.csv')
