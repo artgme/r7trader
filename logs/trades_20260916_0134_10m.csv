@@ -1,0 +1,25 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-09-16 09:49:24.954797,DIS,ibkr,enter_long,107.28,10.0,long
+2026-09-16 09:49:28.063641,TMO,ibkr,enter_long,642.41,10.0,long
+2026-09-16 10:59:49.067264,LUV,ibkr,enter_long,39.4,10.0,long
+2026-09-16 11:17:54.059498,LUV,ibkr,exit_long_trail,39.38,10.0,flat
+2026-09-16 12:16:54.055669,TMO,ibkr,exit_long_manual,648.6,10.0,flat
+2026-09-16 12:30:17.843060,HPQ,ibkr,enter_short,33.3,10.0,short
+2026-09-16 12:30:21.246200,FRSH,ibkr,enter_long,12.62,10.0,long
+2026-09-16 12:40:24.052999,ELVN,ibkr,enter_short,50.16,10.0,short
+2026-09-16 12:40:28.049660,ISRG,ibkr,enter_short,384.0,10.0,short
+2026-09-16 12:44:51.824271,ELVN,ibkr,exit_short_trail,50.48,10.0,flat
+2026-09-16 14:41:04.027334,ABNB,ibkr,enter_short,168.52,10.0,short
+2026-09-16 15:01:09.949671,PYPL,ibkr,enter_short,52.67,10.0,short
+2026-09-16 15:13:52.478480,DIS,ibkr,exit_long_trail,107.23,10.0,flat
+2026-09-16 15:14:37.570372,FRSH,ibkr,exit_long_manual,12.61,10.0,flat
+2026-09-16 15:21:18.952702,CSCO,ibkr,enter_short,108.04,10.0,short
+2026-09-16 15:21:22.426435,HALO,ibkr,enter_short,107.93,10.0,short
+2026-09-16 15:41:27.180885,UAA,ibkr,exit_short_manual,5.02,10.0,flat
+2026-09-16 15:41:28.705151,HALO,ibkr,exit_short_manual,107.86,10.0,flat
+2026-09-16 15:41:31.141824,ABNB,ibkr,exit_short_manual,167.19,10.0,flat
+2026-09-16 15:41:33.069937,CSCO,ibkr,exit_short_manual,108.03,10.0,flat
+2026-09-16 15:41:34.732977,ISRG,ibkr,exit_short_manual,382.12,10.0,flat
+2026-09-16 15:41:36.188104,HPQ,ibkr,exit_short_manual,32.85,10.0,flat
+2026-09-16 15:41:36.951956,JD,ibkr,exit_short_manual,26.87,10.0,flat
+2026-09-16 15:41:38.423146,PYPL,ibkr,exit_short_manual,52.59,10.0,flat
