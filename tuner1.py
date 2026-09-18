@@ -30,7 +30,8 @@ FOUND_PARAMS_FILE = Path('tuner1_found_params6.py')
 # else — spans 14 sectors overall. Tuned one at a time, results reported per ticker.
 #TICKERS = ['VOYG', 'ISRG','ASTS']  # tuned one at a time, results reported per ticker
 #TICKERS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP','JD','ABNB','FRSH','TMO','HALO','ISRG']
-TICKERS = ['AA', 'ASTS', 'NXT', 'STX', 'ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
+#TICKERS = ['AA', 'ASTS', 'NXT', 'STX']
+TICKERS = ['ALAB', 'ARWR', 'A', 'HOOD', 'PSKY',
             'VSAT', 'UMC', 'AFRM', 'MXL', 'ALK', 'BE', 'REZI', 'BROS', 'NBIS', 'AAL',
             'LITE', 'RBLX', 'CDE', 'DHI', 'ENTG', 'CVNA', 'JHX', 'IREN', 'MWH', 'QXO',
             'HPQ', 'VFC', 'VSH', 'U', 'UAL', 'GLXY', 'APLD', 'CRDO', 'RIOT', 'RKT',

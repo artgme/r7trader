@@ -32,7 +32,7 @@ CONFIG_MODULE = 'tuner1_found_params6'  # swap to e.g. 'tuner1_found_params' to 
 
 CHECK_INTERVAL = 100  # sekundy pomiędzy sprawdzeniem połączenia
 SYMBOLS = ['ELVN','HPQ','PYPL','CSCO','PATH','DIS','LUV','UAA','XP',
-           'JD','ABNB','FRSH','TMO','HALO','ISRG']
+           'JD','ABNB','FRSH','TMO','HALO','ISRG','AA', 'ASTS', 'NXT', 'STX']
 #    'ASTS','ALAB','VOYG','NXT','PATH','HPQ','ABNB','LUV','FRSH','JD','DIS']
 # SYMBOLS = [
 #     'AMAT', 'LITE', 'ALAB', 'STX', 'CIEN', 'AMD', 'MPWR', 'SIMO', 'BE', 'ISRG',
