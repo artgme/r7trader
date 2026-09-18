@@ -1,0 +1,10 @@
+timestamp,symbol,broker,action,price,size,position_after
+2026-09-18 09:45:53.927286,HPQ,ibkr,enter_short,34.05,10.0,short
+2026-09-18 11:06:28.033414,ABNB,ibkr,enter_long,166.33,10.0,long
+2026-09-18 11:16:32.254831,PATH,ibkr,enter_long,13.47,10.0,long
+2026-09-18 11:26:39.023946,XP,ibkr,enter_long,20.05,10.0,long
+2026-09-18 15:41:38.032568,PATH,ibkr,exit_long_manual,13.41,10.0,flat
+2026-09-18 15:41:39.595823,ABNB,ibkr,exit_long_manual,166.83,10.0,flat
+2026-09-18 15:41:42.023443,XP,ibkr,exit_long_manual,20.13,10.0,flat
+2026-09-18 15:41:44.022128,HPQ,ibkr,exit_short_manual,34.03,10.0,flat
+2026-09-18 15:41:44.511709,PYPL,ibkr,exit_short_manual,52.45,10.0,flat
